@@ -1,0 +1,14 @@
+-- Fix: the previous migration created published_review_shares with
+-- security_invoker = true. In invoker mode Postgres re-checks privileges
+-- against the QUERYING role for every relation the view touches — so
+-- anon still needed a grant on the base published_reviews table, which
+-- defeats the point of a column-narrowed public view. Verified live: a
+-- 401/42501 "permission denied for table published_reviews" even when
+-- querying the view directly with the anon key.
+--
+-- security_invoker = false (Postgres's pre-15 default, and what's needed
+-- here) makes the view run with its owner's privileges for underlying
+-- table access, so anon can read the narrow view without any base-table
+-- grant at all. Row visibility is unaffected either way — the base
+-- table's own SELECT policy already allows every row to every role.
+alter view public.published_review_shares set (security_invoker = false);

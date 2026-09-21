@@ -1,0 +1,75 @@
+@AGENTS.md
+
+# Deadlock Coach
+
+## What this app is
+
+An AI companion for Valve's Deadlock — an early-access, largely "unsolved"
+competitive MOBA. Players struggle to itemize and counter-pick correctly
+because no settled meta exists yet, and there is no single source that
+turns raw win-rate data into a decision for *your specific* matchup.
+
+The app has three features, all built around one LLM call each:
+
+1. **Laning advisor** — pick your hero, your lane partner, and the enemy
+   laner(s). The server fetches live hero/matchup/item stats from the
+   Deadlock community API (`api.deadlock-api.com`) and an LLM ("Analyst"
+   persona) synthesizes them into a concrete laning buy order.
+2. **Itemization advisor** — same idea, but reasoning across the entire
+   6-hero enemy team at once, weighing trade-offs a static stats page
+   can't.
+3. **Post-match reviewer** — given a finished match, an LLM ("Coach"
+   persona) reviews your itemization and decisions, agentically deciding
+   whether to search your own match history (pgvector RAG) or the
+   official Deadlock MCP server for supporting context.
+
+**Why the AI is the point, not a bolt-on:** the underlying stats
+(win rates, item timing, matchups) are already public on deadlock-api.com.
+This app is pointless without the LLM specifically because raw stats
+tables don't make a decision for you — the value is an LLM synthesizing
+7 simultaneous hero matchups (yours + your partner's + up to 6 enemies)
+into one buy order, and reflecting on a specific match's events in
+natural language. Strip out the LLM call and there's no app left, only a
+stats dashboard that already exists elsewhere.
+
+## Architecture at a glance
+
+- Next.js (App Router) on Vercel, Supabase (Auth + Postgres + pgvector),
+  OpenRouter for all LLM/embedding calls.
+- Advisors are deterministic single-shot completions (stats fetched first,
+  no tool-calling). The post-match reviewer is agentic, with two tools:
+  `search_notes` (pgvector over the user's own past reviews + hero kit
+  text) and the official Deadlock MCP server (`api.deadlock-api.com/v1/mcp`)
+  for broader cross-match questions.
+- Full design rationale lives in `~/.claude/plans/i-am-a-student-serialized-stroustrup.md`
+  on the author's machine (brainstormed via `superpowers:brainstorming`,
+  reviewed by the `ai-architect` subagent).
+
+## AI rules
+
+AI model calls:
+- All LLM and embedding calls must happen server-side only. Never call
+  OpenRouter from browser code.
+- OPENROUTER_API_KEY lives in .env.local and must never have a NEXT_PUBLIC_
+  prefix or be passed to client components.
+- Model: openai/gpt-4o-mini (used for both the Analyst and Coach personas —
+  cheap, supports `tools`/`structured_outputs`, no deprecation flag as of
+  2026-09-21).
+
+Embeddings:
+- Embedding model: openai/text-embedding-3-small via OpenRouter.
+- The documents table embedding column is vector(1536) — do not change this
+  dimension.
+- Never change the embedding model after initial setup. Changing it breaks
+  retrieval silently.
+
+## Secrets
+
+- `.env.local` holds `OPENROUTER_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`,
+  `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`. It is
+  git-ignored; `.env.example` (committed, no real values) documents the
+  shape.
+- Only the Supabase anon/publishable key may be `NEXT_PUBLIC_`. The
+  service-role key is used only in `src/lib/supabase/admin.ts`, imported
+  exclusively by server-only background jobs (stats caching, hero-doc
+  seeding) — never by anything reachable from a Client Component.
