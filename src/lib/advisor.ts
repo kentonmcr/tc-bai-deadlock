@@ -1,9 +1,42 @@
 import "server-only";
+import type { User, SupabaseClient } from "@supabase/supabase-js";
 import type { Hero, Item, HeroCounterRow, ItemStatRow } from "@/lib/deadlock-api";
 import { findCounterMatchup, heroName, itemName } from "@/lib/deadlock-api";
 
 export const MAX_LANING_ENEMIES = 2;
 export const MAX_ITEMIZATION_ENEMIES = 6;
+
+// Below this many games, a single-digit sample can produce a 100% (or 0%)
+// win rate that would otherwise crowd out a statistically reliable item
+// with a much larger sample. The Analyst persona is instructed to caveat
+// thin samples, but it can only caveat what's still in the list after
+// ranking and truncation — this filter runs before that, not after.
+const MIN_ITEM_SAMPLE_SIZE = 10;
+
+/** Parses a request body, rejecting anything that isn't a plain JSON object. */
+export async function parseJsonBody(req: Request): Promise<Record<string, unknown> | null> {
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    return null;
+  }
+  if (typeof body !== "object" || body === null || Array.isArray(body)) return null;
+  return body as Record<string, unknown>;
+}
+
+/** Shared auth check for the advisor routes — returns the user or a ready-to-return 401. */
+export async function requireUser(
+  supabase: SupabaseClient,
+): Promise<{ user: User } | { error: Response }> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return { error: new Response("Unauthorized", { status: 401 }) };
+  }
+  return { user };
+}
 
 /**
  * Validates a single hero ID against the real hero list. Returns null for
@@ -57,7 +90,7 @@ export function topItemFacts(
   return rows
     .filter(
       (row) =>
-        row.matches > 0 &&
+        row.matches >= MIN_ITEM_SAMPLE_SIZE &&
         (options.maxBuyTimeRelative === undefined || row.avg_buy_time_relative <= options.maxBuyTimeRelative),
     )
     .map((row) => ({

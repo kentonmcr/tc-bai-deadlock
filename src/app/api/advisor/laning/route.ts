@@ -18,21 +18,31 @@ import {
   validateEnemyIds,
   counterFactsForHero,
   topItemFacts,
+  parseJsonBody,
+  requireUser,
 } from "@/lib/advisor";
 
 const EARLY_GAME_BUY_TIME_THRESHOLD = 30; // avg_buy_time_relative, % of typical match
+const DEADLOCK_API_DOWN_MESSAGE =
+  "The Deadlock stats API is temporarily unavailable. Try again shortly.";
 
 export async function POST(req: Request) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return new Response("Unauthorized", { status: 401 });
+  const authResult = await requireUser(supabase);
+  if ("error" in authResult) return authResult.error;
+  const { user } = authResult;
+
+  const body = await parseJsonBody(req);
+  if (!body) {
+    return new Response("Request body must be a JSON object", { status: 400 });
   }
 
-  const body = await req.json();
-  const heroes = await getHeroes();
+  let heroes;
+  try {
+    heroes = await getHeroes();
+  } catch {
+    return new Response(DEADLOCK_API_DOWN_MESSAGE, { status: 502 });
+  }
 
   const myHero = validateHeroId(heroes, body.myHero);
   const partnerHero = validateHeroId(heroes, body.partnerHero);
@@ -55,9 +65,7 @@ export async function POST(req: Request) {
       getItemStats(myHero, enemyLaners),
     ]);
   } catch {
-    return new Response("The Deadlock stats API is temporarily unavailable. Try again shortly.", {
-      status: 502,
-    });
+    return new Response(DEADLOCK_API_DOWN_MESSAGE, { status: 502 });
   }
 
   const matchupFacts = enemyLaners.flatMap((enemyId) => [
@@ -76,13 +84,17 @@ export async function POST(req: Request) {
     ? (() => {
         const totalMatches = laneMatchupRows.reduce((sum, r) => sum + r.matches_played, 0);
         const totalWins = laneMatchupRows.reduce((sum, r) => sum + r.wins, 0);
-        const avgNetWorthDiff =
-          laneMatchupRows.reduce((sum, r) => sum + r.net_worth_diff * r.matches_played, 0) /
-          totalMatches;
+        // Guard against a malformed/missing net_worth_diff on any single row
+        // poisoning the whole weighted average via NaN propagation — this is
+        // independent of totalMatches, so it can't reuse the winRate guard.
+        const netWorthSum = laneMatchupRows.reduce(
+          (sum, r) => (Number.isFinite(r.net_worth_diff) ? sum + r.net_worth_diff * r.matches_played : sum),
+          0,
+        );
         return {
           winRate: totalMatches > 0 ? totalWins / totalMatches : null,
           matches: totalMatches,
-          netWorthDiff: avgNetWorthDiff,
+          netWorthDiff: totalMatches > 0 && Number.isFinite(netWorthSum) ? netWorthSum / totalMatches : null,
         };
       })()
     : null;

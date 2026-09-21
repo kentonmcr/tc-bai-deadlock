@@ -62,12 +62,12 @@ export function buildLaningPrompt(input: {
         : "no data"
     }`,
     "",
-    input.laneMatchup
-      ? `This exact duo-vs-duo lane matchup: ${
-          input.laneMatchup.winRate !== null
-            ? `${(input.laneMatchup.winRate * 100).toFixed(1)}% win rate (${input.laneMatchup.matches} games, avg net worth diff at sample time: ${input.laneMatchup.netWorthDiff?.toFixed(0)})`
-            : "no data for this exact combination"
-        }`
+input.laneMatchup && input.laneMatchup.winRate !== null
+      ? `This exact duo-vs-duo lane matchup: ${(input.laneMatchup.winRate * 100).toFixed(1)}% win rate (${input.laneMatchup.matches} games${
+          input.laneMatchup.netWorthDiff !== null
+            ? `, avg net worth diff at sample time: ${input.laneMatchup.netWorthDiff.toFixed(0)}`
+            : ""
+        })`
       : "No duo-vs-duo data available for this exact combination — reason from the 1v1 matchups and synergy above instead.",
     "",
     "Early-game item performance for my hero against this matchup (win rate, sample size, average buy timing):",

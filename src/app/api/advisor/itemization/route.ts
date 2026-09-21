@@ -3,19 +3,36 @@ import { createClient } from "@/lib/supabase/server";
 import { openrouter, ADVISOR_MODEL } from "@/lib/openrouter";
 import { ANALYST_SYSTEM_PROMPT, buildItemizationPrompt } from "@/lib/prompts";
 import { getHeroes, getItems, getHeroCounterStats, getItemStats, heroName } from "@/lib/deadlock-api";
-import { MAX_ITEMIZATION_ENEMIES, validateHeroId, validateEnemyIds, counterFactsForHero, topItemFacts } from "@/lib/advisor";
+import {
+  MAX_ITEMIZATION_ENEMIES,
+  validateHeroId,
+  validateEnemyIds,
+  counterFactsForHero,
+  topItemFacts,
+  parseJsonBody,
+  requireUser,
+} from "@/lib/advisor";
+
+const DEADLOCK_API_DOWN_MESSAGE =
+  "The Deadlock stats API is temporarily unavailable. Try again shortly.";
 
 export async function POST(req: Request) {
   const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
-    return new Response("Unauthorized", { status: 401 });
+  const authResult = await requireUser(supabase);
+  if ("error" in authResult) return authResult.error;
+  const { user } = authResult;
+
+  const body = await parseJsonBody(req);
+  if (!body) {
+    return new Response("Request body must be a JSON object", { status: 400 });
   }
 
-  const body = await req.json();
-  const heroes = await getHeroes();
+  let heroes;
+  try {
+    heroes = await getHeroes();
+  } catch {
+    return new Response(DEADLOCK_API_DOWN_MESSAGE, { status: 502 });
+  }
 
   const myHero = validateHeroId(heroes, body.myHero);
   const enemyTeam = validateEnemyIds(heroes, body.enemyTeam, MAX_ITEMIZATION_ENEMIES);
@@ -34,9 +51,7 @@ export async function POST(req: Request) {
       getItemStats(myHero, enemyTeam),
     ]);
   } catch {
-    return new Response("The Deadlock stats API is temporarily unavailable. Try again shortly.", {
-      status: 502,
-    });
+    return new Response(DEADLOCK_API_DOWN_MESSAGE, { status: 502 });
   }
 
   const matchupFacts = counterFactsForHero(heroes, counterStats, myHero, enemyTeam);
