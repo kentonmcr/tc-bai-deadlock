@@ -1,12 +1,13 @@
+import "server-only";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 
 /**
  * Service-role Supabase client. Bypasses RLS entirely.
  *
- * Server-only. Never import this from a Client Component, a file with
- * "use client", or anything that could end up in a browser bundle — it
- * holds SUPABASE_SERVICE_ROLE_KEY. Restricted to trusted server-side jobs:
- * stats_cache writes and the hero/item document seed script.
+ * Restricted to trusted server-side jobs: stats_cache writes and the
+ * hero/item document seed script. The "server-only" import turns an
+ * accidental Client Component import into a build error rather than a
+ * convention someone has to remember.
  */
 export function createAdminClient() {
   return createSupabaseClient(

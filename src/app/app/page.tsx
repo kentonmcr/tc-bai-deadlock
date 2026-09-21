@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { signOut } from "@/lib/actions/auth";
 
@@ -8,11 +9,30 @@ export default async function AppPage() {
   } = await supabase.auth.getUser();
 
   return (
-    <main className="flex flex-1 flex-col items-center justify-center gap-4 px-6 text-center">
+    <main className="mx-auto flex w-full max-w-2xl flex-1 flex-col items-center justify-center gap-6 px-6 py-12 text-center">
       <h1 className="text-2xl font-semibold">Welcome, {user?.email}</h1>
-      <p className="max-w-md text-zinc-600 dark:text-zinc-400">
-        Signed in and past the auth gate. The laning advisor, itemization
-        advisor, and post-match reviewer land here in the next build phase.
+      <div className="flex w-full flex-col gap-4 sm:flex-row">
+        <Link
+          href="/app/laning"
+          className="flex-1 rounded-lg border border-black/[.08] px-5 py-4 text-left dark:border-white/[.145]"
+        >
+          <span className="font-medium">Laning Advisor</span>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            Buy order for your hero, your lane partner, and the enemy laner(s).
+          </p>
+        </Link>
+        <Link
+          href="/app/itemization"
+          className="flex-1 rounded-lg border border-black/[.08] px-5 py-4 text-left dark:border-white/[.145]"
+        >
+          <span className="font-medium">Itemization Advisor</span>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            Full-match itemization plan against the whole enemy team.
+          </p>
+        </Link>
+      </div>
+      <p className="text-sm text-zinc-500 dark:text-zinc-500">
+        Post-match review lands in a later build phase.
       </p>
       <form action={signOut}>
         <button
