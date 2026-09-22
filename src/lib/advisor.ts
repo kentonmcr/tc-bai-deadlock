@@ -13,6 +13,10 @@ export const MAX_ITEMIZATION_ENEMIES = 6;
 // ranking and truncation — this filter runs before that, not after.
 const MIN_ITEM_SAMPLE_SIZE = 10;
 
+export function isPositiveInt(value: unknown): value is number {
+  return typeof value === "number" && Number.isInteger(value) && value > 0;
+}
+
 /** Parses a request body, rejecting anything that isn't a plain JSON object. */
 export async function parseJsonBody(req: Request): Promise<Record<string, unknown> | null> {
   let body: unknown;

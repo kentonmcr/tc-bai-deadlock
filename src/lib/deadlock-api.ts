@@ -51,6 +51,25 @@ export type ItemStatRow = {
   avg_buy_time_relative: number;
 };
 
+export type SteamProfile = {
+  account_id: number;
+  personaname: string;
+  avatar: string;
+  avatarmedium: string;
+  matches_played_last_30d: number;
+};
+
+export type MatchHistoryEntry = {
+  match_id: number;
+  hero_id: number;
+  start_time: number;
+  player_kills: number;
+  player_deaths: number;
+  player_assists: number;
+  match_duration_s: number;
+  player_match_outcome: number; // 1 = win, 2 = loss (see Deadlock API docs)
+};
+
 type QueryParams = Record<string, string | number | Array<string | number> | undefined>;
 
 async function fetchJson<T>(path: string, params?: QueryParams): Promise<T> {
@@ -201,6 +220,51 @@ export function findSynergy(rows: HeroSynergyRow[], heroId: number, partnerId: n
   );
   if (!row || row.matches_played === 0) return null;
   return { winRate: row.wins / row.matches_played, matches: row.matches_played };
+}
+
+/**
+ * Live, per-user lookup — never cached (this is convenience UI for
+ * finding a match to review, not shared meta stats, and the result set
+ * for a given name changes as soon as anyone's profile updates).
+ */
+export async function steamSearch(query: string): Promise<SteamProfile[]> {
+  const raw = await fetchJson<SteamProfile[]>("/v1/players/steam-search", {
+    search_query: query,
+    limit: 5,
+  });
+  // Map to an explicit allow-list rather than passing the upstream response
+  // straight to the client — if this third-party API ever adds a new field
+  // (even one never meant to be public), it shouldn't flow to the browser
+  // just because it happened to be present in the response.
+  return raw.map((p) => ({
+    account_id: p.account_id,
+    personaname: p.personaname,
+    avatar: p.avatar,
+    avatarmedium: p.avatarmedium,
+    matches_played_last_30d: p.matches_played_last_30d,
+  }));
+}
+
+/**
+ * Returns most-recent-first, capped here rather than trusting the caller —
+ * the underlying endpoint has no page-size param and can return a full
+ * multi-hundred-match history, which is unusable as a picker list.
+ */
+export async function getMatchHistory(accountId: number, limit = 15): Promise<MatchHistoryEntry[]> {
+  const raw = await fetchJson<MatchHistoryEntry[]>(`/v1/players/${accountId}/match-history`);
+  return raw
+    .map((m) => ({
+      match_id: m.match_id,
+      hero_id: m.hero_id,
+      start_time: m.start_time,
+      player_kills: m.player_kills,
+      player_deaths: m.player_deaths,
+      player_assists: m.player_assists,
+      match_duration_s: m.match_duration_s,
+      player_match_outcome: m.player_match_outcome,
+    }))
+    .sort((a, b) => b.start_time - a.start_time)
+    .slice(0, limit);
 }
 
 export function heroName(heroes: Hero[], id: number): string {
