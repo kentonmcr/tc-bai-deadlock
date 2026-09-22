@@ -14,7 +14,7 @@ Three features, each built around a real OpenRouter LLM call, not a decorative c
 
 ## Live app
 
-**[Deploy URL — added after deployment]**
+**[Deadlock Coach — tc-bai-deadlock.vercel.app](https://tc-bai-deadlock.vercel.app)**
 
 ## Optional task(s) completed
 
@@ -70,7 +70,7 @@ Uses the same `.env.local` (needs the service-role key to create/delete its own 
 
 ## Screenshot
 
-**[Screenshot added below]**
+![Laning Advisor giving a live, AI-generated buy order against Vindicta](./screenshot.png)
 
 ## Tech stack
 
