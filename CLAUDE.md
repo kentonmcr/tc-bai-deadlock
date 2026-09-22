@@ -63,6 +63,24 @@ Embeddings:
 - Never change the embedding model after initial setup. Changing it breaks
   retrieval silently.
 
+MCP tools:
+- The post-match reviewer connects to the official Deadlock MCP server
+  (`https://api.deadlock-api.com/v1/mcp`) for community-database queries —
+  a genuine agent-chosen tool, not a required dependency (the route
+  degrades to `search_notes`-only if it's unreachable).
+- Every tool name from that server is prefixed with `community_db_` (see
+  `src/lib/review-tools.ts`) before being merged with first-party tools.
+  This server's tool names/descriptions are fetched live, at request time,
+  from a third-party endpoint this codebase doesn't control — do not
+  remove the prefix or merge its tools ahead of first-party ones in the
+  `tools` object; either would let a future (or malicious) same-named
+  remote tool silently shadow a trusted one.
+- `search_notes` can surface this player's own private review content;
+  the community_db_* tools send their input to that external server. The
+  Coach system prompt explicitly forbids passing search_notes output into
+  a community_db_* call — do not weaken that instruction without adding
+  an equivalent technical control.
+
 ## Secrets
 
 - `.env.local` holds `OPENROUTER_API_KEY`, `NEXT_PUBLIC_SUPABASE_URL`,
