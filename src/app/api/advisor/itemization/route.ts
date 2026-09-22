@@ -11,6 +11,7 @@ import {
   topItemFacts,
   parseJsonBody,
   requireUser,
+  checkRateLimit,
 } from "@/lib/advisor";
 
 const DEADLOCK_API_DOWN_MESSAGE =
@@ -21,6 +22,9 @@ export async function POST(req: Request) {
   const authResult = await requireUser(supabase);
   if ("error" in authResult) return authResult.error;
   const { user } = authResult;
+
+  const rateLimitError = await checkRateLimit(supabase, user.id, "advisor_sessions");
+  if (rateLimitError) return rateLimitError;
 
   const body = await parseJsonBody(req);
   if (!body) {

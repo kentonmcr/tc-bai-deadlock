@@ -6,7 +6,7 @@ import { getHeroes, getItems } from "@/lib/deadlock-api";
 import { buildMatchSummary } from "@/lib/match-summary";
 import { createSearchNotesTool, createNamespacedMcpTools } from "@/lib/review-tools";
 import { embedText } from "@/lib/embeddings";
-import { parseJsonBody, requireUser, isPositiveInt } from "@/lib/advisor";
+import { parseJsonBody, requireUser, isPositiveInt, checkRateLimit } from "@/lib/advisor";
 
 const DEADLOCK_API_DOWN_MESSAGE =
   "The Deadlock stats API is temporarily unavailable. Try again shortly.";
@@ -16,6 +16,9 @@ export async function POST(req: Request) {
   const authResult = await requireUser(supabase);
   if ("error" in authResult) return authResult.error;
   const { user } = authResult;
+
+  const rateLimitError = await checkRateLimit(supabase, user.id, "match_reviews");
+  if (rateLimitError) return rateLimitError;
 
   const body = await parseJsonBody(req);
   if (!body) {
