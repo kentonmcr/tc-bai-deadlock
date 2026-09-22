@@ -11,7 +11,7 @@ import { createClient } from "@supabase/supabase-js";
 // swaps in a no-op version only for its own server bundles; Playwright
 // runs test files directly through Node, with no such substitution).
 // Options are kept in sync with admin.ts by hand instead.
-function adminClient() {
+export function adminClient() {
   return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
     auth: {
       autoRefreshToken: false,
