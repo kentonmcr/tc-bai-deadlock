@@ -23,7 +23,7 @@ This project completed six optional tasks (against a minimum of one):
 - **Agentic RAG** (Hard) — the post-match reviewer's `search_notes` tool does real pgvector semantic search over hero-kit text and the player's own past reviews; the model decides whether/what to search, chains it with a second `community_db_*` MCP tool where useful, and each call renders live in the UI rather than only being visible server-side.
 - **Shareable AI Outputs** (Hard) — published reviews get a public, unauthenticated `/review/[slug]` URL; everything else in the app stays behind auth.
 - **Tuned System-Prompt Persona** (Medium) — two deliberately distinct voices: the Analyst (terse, decisive, buy-order-first) and the Coach (reflective, teaching), tuned as their own focused passes.
-- **Playwright Tests** (Medium) — `e2e/` covers the AI feature's happy path (a real, non-mocked AI response) and the signed-out visitor lockout.
+- **Playwright Tests** (Medium) — `e2e/` covers the AI feature's happy path (a real, non-mocked AI response), the signed-out visitor lockout, and an automated cross-user privacy check confirming RLS actually blocks one user from reading another's saved AI output.
 - **Deploy to Vercel** (Medium) — see the live URL above.
 - **Streaming responses** (Easy) — every AI feature streams token-by-token via the Vercel AI SDK (`useCompletion`/`useChat`), not returned as a single blocked-on completion.
 
