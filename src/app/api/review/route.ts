@@ -6,14 +6,10 @@ import { getHeroes, getItems } from "@/lib/deadlock-api";
 import { buildMatchSummary } from "@/lib/match-summary";
 import { createSearchNotesTool, createNamespacedMcpTools } from "@/lib/review-tools";
 import { embedText } from "@/lib/embeddings";
-import { parseJsonBody, requireUser } from "@/lib/advisor";
+import { parseJsonBody, requireUser, isPositiveInt } from "@/lib/advisor";
 
 const DEADLOCK_API_DOWN_MESSAGE =
   "The Deadlock stats API is temporarily unavailable. Try again shortly.";
-
-function isPositiveInt(value: unknown): value is number {
-  return typeof value === "number" && Number.isInteger(value) && value > 0;
-}
 
 export async function POST(req: Request) {
   const supabase = await createClient();

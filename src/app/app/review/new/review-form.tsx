@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useCompletion } from "@ai-sdk/react";
 import { createClient } from "@/lib/supabase/client";
 import type { Hero, SteamProfile, MatchHistoryEntry } from "@/lib/deadlock-api";
@@ -25,6 +25,10 @@ export function ReviewForm({ heroes }: { heroes: Hero[] }) {
   const [loadingMatches, setLoadingMatches] = useState(false);
   const [matchesError, setMatchesError] = useState<string | null>(null);
   const [matches, setMatches] = useState<MatchHistoryEntry[] | null>(null);
+  // Guards against a slower profile-A fetch resolving after a faster
+  // profile-B pick and overwriting B's match list with A's — only the
+  // response matching the most recent pick is ever applied to state.
+  const matchHistoryRequestId = useRef(0);
 
   const { completion, complete, isLoading, error } = useCompletion({
     api: "/api/review",
@@ -67,6 +71,7 @@ export function ReviewForm({ heroes }: { heroes: Hero[] }) {
   }
 
   async function handlePickProfile(profile: SteamProfile) {
+    const requestId = ++matchHistoryRequestId.current;
     setSelectedProfile(profile);
     setAccountId(String(profile.account_id));
     setMatches(null);
@@ -75,11 +80,14 @@ export function ReviewForm({ heroes }: { heroes: Hero[] }) {
     try {
       const res = await fetch(`/api/deadlock/match-history?accountId=${profile.account_id}`);
       if (!res.ok) throw new Error(await res.text());
-      setMatches(await res.json());
+      const data = await res.json();
+      if (matchHistoryRequestId.current !== requestId) return; // a newer pick superseded this one
+      setMatches(data);
     } catch {
+      if (matchHistoryRequestId.current !== requestId) return;
       setMatchesError("Couldn't load match history right now. Try again shortly.");
     } finally {
-      setLoadingMatches(false);
+      if (matchHistoryRequestId.current === requestId) setLoadingMatches(false);
     }
   }
 
@@ -138,7 +146,7 @@ export function ReviewForm({ heroes }: { heroes: Hero[] }) {
                   }`}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={p.avatar} alt="" className="h-6 w-6 rounded" />
+                  <img src={p.avatar} alt="" referrerPolicy="no-referrer" className="h-6 w-6 rounded" />
                   <span>{p.personaname}</span>
                   <span className="text-xs text-zinc-500">
                     {p.matches_played_last_30d} matches / 30d

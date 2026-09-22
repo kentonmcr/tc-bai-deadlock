@@ -228,7 +228,21 @@ export function findSynergy(rows: HeroSynergyRow[], heroId: number, partnerId: n
  * for a given name changes as soon as anyone's profile updates).
  */
 export async function steamSearch(query: string): Promise<SteamProfile[]> {
-  return fetchJson("/v1/players/steam-search", { search_query: query, limit: 5 });
+  const raw = await fetchJson<SteamProfile[]>("/v1/players/steam-search", {
+    search_query: query,
+    limit: 5,
+  });
+  // Map to an explicit allow-list rather than passing the upstream response
+  // straight to the client — if this third-party API ever adds a new field
+  // (even one never meant to be public), it shouldn't flow to the browser
+  // just because it happened to be present in the response.
+  return raw.map((p) => ({
+    account_id: p.account_id,
+    personaname: p.personaname,
+    avatar: p.avatar,
+    avatarmedium: p.avatarmedium,
+    matches_played_last_30d: p.matches_played_last_30d,
+  }));
 }
 
 /**
@@ -237,8 +251,20 @@ export async function steamSearch(query: string): Promise<SteamProfile[]> {
  * multi-hundred-match history, which is unusable as a picker list.
  */
 export async function getMatchHistory(accountId: number, limit = 15): Promise<MatchHistoryEntry[]> {
-  const all = await fetchJson<MatchHistoryEntry[]>(`/v1/players/${accountId}/match-history`);
-  return [...all].sort((a, b) => b.start_time - a.start_time).slice(0, limit);
+  const raw = await fetchJson<MatchHistoryEntry[]>(`/v1/players/${accountId}/match-history`);
+  return raw
+    .map((m) => ({
+      match_id: m.match_id,
+      hero_id: m.hero_id,
+      start_time: m.start_time,
+      player_kills: m.player_kills,
+      player_deaths: m.player_deaths,
+      player_assists: m.player_assists,
+      match_duration_s: m.match_duration_s,
+      player_match_outcome: m.player_match_outcome,
+    }))
+    .sort((a, b) => b.start_time - a.start_time)
+    .slice(0, limit);
 }
 
 export function heroName(heroes: Hero[], id: number): string {

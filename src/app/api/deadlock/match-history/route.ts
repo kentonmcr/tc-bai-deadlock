@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { requireUser } from "@/lib/advisor";
+import { requireUser, isPositiveInt } from "@/lib/advisor";
 import { getMatchHistory } from "@/lib/deadlock-api";
 
 export async function GET(req: Request) {
@@ -9,8 +9,8 @@ export async function GET(req: Request) {
 
   const raw = new URL(req.url).searchParams.get("accountId");
   const accountId = raw ? Number(raw) : NaN;
-  if (!Number.isInteger(accountId) || accountId < 0) {
-    return new Response("accountId must be a non-negative integer", { status: 400 });
+  if (!isPositiveInt(accountId)) {
+    return new Response("accountId must be a positive integer", { status: 400 });
   }
 
   try {
