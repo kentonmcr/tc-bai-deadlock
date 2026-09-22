@@ -16,10 +16,16 @@ export function ReviewForm() {
     streamProtocol: "text",
     onFinish: async () => {
       const supabase = createClient();
+      // The server stores match_id as String(Number(matchId)) — e.g. a
+      // leading zero the user typed ("0123") gets normalized away server
+      // side. Querying with the raw input string would silently miss the
+      // row (the review still saves fine; only the Publish button would
+      // never appear), so normalize identically here before querying.
+      const normalizedMatchId = String(Number(matchId));
       const { data } = await supabase
         .from("match_reviews")
         .select("id")
-        .eq("match_id", matchId)
+        .eq("match_id", normalizedMatchId)
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();

@@ -1,10 +1,9 @@
-import { streamText, stepCountIs } from "ai";
+import { streamText, stepCountIs, type ToolSet } from "ai";
 import { createClient } from "@/lib/supabase/server";
 import { openrouter, ADVISOR_MODEL } from "@/lib/openrouter";
 import { COACH_SYSTEM_PROMPT, buildReviewPrompt } from "@/lib/prompts";
 import { getHeroes, getItems } from "@/lib/deadlock-api";
 import { buildMatchSummary } from "@/lib/match-summary";
-import type { ToolSet } from "ai";
 import { createSearchNotesTool, createNamespacedMcpTools } from "@/lib/review-tools";
 import { embedText } from "@/lib/embeddings";
 import { parseJsonBody, requireUser } from "@/lib/advisor";
@@ -33,6 +32,16 @@ export async function POST(req: Request) {
     return new Response("matchId and accountId must be positive integers", { status: 400 });
   }
 
+  // The MCP server doesn't depend on match data at all — kick off the
+  // connection now, concurrently with fetching/building the match
+  // summary below, rather than paying both latencies back to back. It's
+  // a genuine agentic tool, not a required dependency, so a failure here
+  // resolves to null rather than rejecting the whole request.
+  const mcpPromise = createNamespacedMcpTools().catch((err) => {
+    console.error("Deadlock MCP server unavailable, proceeding without it:", err);
+    return null;
+  });
+
   let heroes, items;
   try {
     [heroes, items] = await Promise.all([getHeroes(), getItems()]);
@@ -53,17 +62,23 @@ export async function POST(req: Request) {
     return new Response(DEADLOCK_API_DOWN_MESSAGE, { status: 502 });
   }
 
-  // The MCP server is a genuine agentic tool, not a required dependency —
-  // if it's unreachable or slow to connect, the reviewer should still
-  // work with search_notes alone rather than failing the whole request.
-  let mcpClient: Awaited<ReturnType<typeof createNamespacedMcpTools>>["client"] | null = null;
-  let mcpTools: ToolSet = {};
-  try {
-    const connected = await createNamespacedMcpTools();
-    mcpClient = connected.client;
-    mcpTools = connected.tools;
-  } catch (err) {
-    console.error("Deadlock MCP server unavailable, proceeding without it:", err);
+  const mcpResult = await mcpPromise;
+  const mcpClient = mcpResult?.client ?? null;
+  const mcpTools: ToolSet = mcpResult?.tools ?? {};
+
+  // Close is best-effort from both the success and error paths below —
+  // a close() failure must never block persisting the review the user
+  // already watched stream in, and the client must be closed regardless
+  // of which path the generation ends on.
+  let mcpClientClosed = false;
+  async function closeMcpClient() {
+    if (mcpClientClosed || !mcpClient) return;
+    mcpClientClosed = true;
+    try {
+      await mcpClient.close();
+    } catch (err) {
+      console.error("Failed to close MCP client:", err);
+    }
   }
 
   const prompt = buildReviewPrompt(summary);
@@ -87,14 +102,15 @@ export async function POST(req: Request) {
       ...mcpTools,
       search_notes: createSearchNotesTool(supabase),
     },
-    onError: ({ error }) => {
+    onError: async ({ error }) => {
       console.error("Post-match review generation error:", error);
+      await closeMcpClient();
     },
     onToolExecutionStart: ({ toolCall }) => {
       console.log(`[review tool call] ${toolCall.toolName}:`, JSON.stringify(toolCall.input));
     },
     onEnd: async ({ text }) => {
-      await mcpClient?.close();
+      await closeMcpClient();
 
       const { data: review, error: insertError } = await supabase
         .from("match_reviews")

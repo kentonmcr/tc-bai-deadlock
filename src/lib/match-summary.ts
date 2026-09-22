@@ -92,7 +92,13 @@ export async function buildMatchSummary(
   const allies = info.players.filter((p) => p.team === me.team && p.account_id !== accountId);
   const enemies = info.players.filter((p) => p.team !== me.team);
 
-  const deathEvents = me.death_details.map((d) => {
+  // These arrays are usually present, but not guaranteed for every match
+  // record (e.g. a bot, a disconnected player, or an older schema
+  // variant) — falling back to [] here means a genuinely missing field
+  // just produces an empty section instead of an uncaught TypeError that
+  // the route handler would otherwise mask as "API temporarily
+  // unavailable," hiding a real, reproducible data-shape issue.
+  const deathEvents = (me.death_details ?? []).map((d) => {
     const killer = info.players.find((p) => p.player_slot === d.killer_player_slot);
     return {
       minute: Math.round(d.game_time_s / 60),
@@ -114,12 +120,12 @@ export async function buildMatchSummary(
     lastHits: me.last_hits,
     denies: me.denies,
     level: me.level,
-    itemTimeline: me.items.map((i) => ({
+    itemTimeline: (me.items ?? []).map((i) => ({
       minute: Math.round(i.game_time_s / 60),
       item: itemName(items, i.item_id),
       sold: i.sold_time_s > 0,
     })),
-    netWorthTrend: me.stats.map((s) => ({
+    netWorthTrend: (me.stats ?? []).map((s) => ({
       minute: Math.round(s.time_stamp_s / 60),
       netWorth: s.net_worth,
     })),

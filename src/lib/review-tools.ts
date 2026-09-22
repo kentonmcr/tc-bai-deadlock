@@ -61,11 +61,35 @@ export function createSearchNotesTool(supabase: SupabaseClient) {
   });
 }
 
-function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+/**
+ * Races `promise` against a timer. Unlike a bare Promise.race, a promise
+ * that resolves *after* we've already given up is not simply abandoned —
+ * `onLateResolve` gets the value so the caller can still clean it up
+ * (specifically: close an MCP client that connected too slowly to use,
+ * rather than leaking it). Neither `.tools()` nor `createMCPClient` (its
+ * top-level options, as opposed to per-request RequestOptions) support a
+ * real AbortSignal for cancellation, so this is the available mitigation
+ * for a slow-but-eventually-successful call, not a true abort.
+ */
+function withTimeout<T>(
+  promise: Promise<T>,
+  ms: number,
+  label: string,
+  onLateResolve?: (value: T) => void,
+): Promise<T> {
+  let timedOut = false;
+  if (onLateResolve) {
+    promise.then((value) => {
+      if (timedOut) onLateResolve(value);
+    }, () => {});
+  }
   return Promise.race([
     promise,
     new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error(`${label} timed out after ${ms}ms`)), ms),
+      setTimeout(() => {
+        timedOut = true;
+        reject(new Error(`${label} timed out after ${ms}ms`));
+      }, ms),
     ),
   ]);
 }
@@ -83,8 +107,13 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
  * own `timeout` option even applies, and a slow/hung MCP handshake was
  * verified live to take meaningfully longer than a well-scoped query.
  *
- * Caller must close the returned client in streamText's onEnd, per the
- * AI SDK's documented MCP client lifecycle for streaming use.
+ * On any failure (including a timeout), any client that did get created
+ * is closed here rather than left for the caller to clean up — the
+ * caller never receives a reference to it if this function throws.
+ *
+ * Caller must close the returned client in streamText's onEnd (and
+ * ideally onError too), per the AI SDK's documented MCP client lifecycle
+ * for streaming use.
  */
 export async function createNamespacedMcpTools(): Promise<{
   client: Awaited<ReturnType<typeof createMCPClient>>;
@@ -94,13 +123,25 @@ export async function createNamespacedMcpTools(): Promise<{
     createMCPClient({ transport: { type: "http", url: DEADLOCK_MCP_URL }, maxRetries: 1 }),
     MCP_CONNECT_TIMEOUT_MS,
     "Deadlock MCP connect",
+    (lateClient) => {
+      lateClient.close().catch(() => {});
+    },
   );
 
-  const rawTools = await withTimeout(
-    client.tools(),
-    MCP_CONNECT_TIMEOUT_MS,
-    "Deadlock MCP tools() listing",
-  );
+  let rawTools;
+  try {
+    rawTools = await withTimeout(
+      client.tools(),
+      MCP_CONNECT_TIMEOUT_MS,
+      "Deadlock MCP tools() listing",
+    );
+  } catch (err) {
+    // We connected but never got usable tools back, and the caller will
+    // never see `client` since this function is about to throw — close
+    // it now or it's leaked for the lifetime of the process.
+    await client.close().catch(() => {});
+    throw err;
+  }
 
   const tools: ToolSet = {};
   for (const [name, def] of Object.entries(rawTools)) {
