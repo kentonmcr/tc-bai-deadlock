@@ -39,10 +39,15 @@ type ToolPartLike = {
   state: "input-streaming" | "input-available" | "approval-requested" | "approval-responded" | "output-available" | "output-error";
   input?: unknown;
   output?: unknown;
+  errorText?: string;
 };
 
 function asToolPart(part: { type: string }): ToolPartLike | null {
-  if (part.type === "dynamic-tool" || part.type.startsWith("tool-")) {
+  if (
+    (part.type === "dynamic-tool" || part.type.startsWith("tool-")) &&
+    "state" in part &&
+    typeof (part as { state: unknown }).state === "string"
+  ) {
     return part as unknown as ToolPartLike;
   }
   return null;
@@ -57,6 +62,11 @@ function toolResultLabel(toolName: string, output: unknown): string {
     return "Got a result from the community database";
   }
   return "Done";
+}
+
+function toolErrorLabel(toolName: string, errorText: string | undefined): string {
+  const source = toolName.startsWith("community_db_") ? "the community database" : "your notes";
+  return errorText ? `Couldn't reach ${source} — ${errorText}` : `Couldn't reach ${source} (timed out or failed)`;
 }
 
 export function ReviewForm({ heroes }: { heroes: Hero[] }) {
@@ -312,7 +322,9 @@ export function ReviewForm({ heroes }: { heroes: Hero[] }) {
                 <p key={i} className="text-xs italic text-zinc-500 dark:text-zinc-400">
                   {toolPart.state === "output-available"
                     ? toolResultLabel(toolName, toolPart.output)
-                    : toolCallLabel(toolName, toolPart.input)}
+                    : toolPart.state === "output-error"
+                      ? toolErrorLabel(toolName, toolPart.errorText)
+                      : toolCallLabel(toolName, toolPart.input)}
                 </p>
               );
             }
