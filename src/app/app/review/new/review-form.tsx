@@ -1,12 +1,62 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useCompletion } from "@ai-sdk/react";
+import { useChat } from "@ai-sdk/react";
+import { DefaultChatTransport } from "ai";
 import { createClient } from "@/lib/supabase/client";
 import type { Hero, SteamProfile, MatchHistoryEntry } from "@/lib/deadlock-api";
 
 function heroName(heroes: Hero[], id: number): string {
   return heroes.find((h) => h.id === id)?.name ?? `Hero #${id}`;
+}
+
+/**
+ * Generic label for any tool call, whether it's the first-party
+ * search_notes tool or one of the community_db_* MCP tools — both arrive
+ * as untyped "dynamic-tool" parts client-side (the MCP tools' names and
+ * schemas are only known at request time, fetched live from a third-party
+ * server), so this exists specifically to make the agentic RAG loop
+ * visible without per-tool-name UI code.
+ */
+function toolCallLabel(toolName: string, input: unknown): string {
+  if (toolName === "search_notes") {
+    const query = typeof input === "object" && input !== null && "query" in input ? String((input as { query: unknown }).query) : "";
+    return query ? `Searching your notes: "${query}"` : "Searching your notes...";
+  }
+  if (toolName.startsWith("community_db_")) {
+    return `Querying the community database (${toolName.replace("community_db_", "")})`;
+  }
+  return `Calling ${toolName}...`;
+}
+
+// The client deliberately doesn't share the server's tool types (some are
+// only known at request time — the MCP tools' schemas are fetched live
+// from a third-party server), so a narrow escape-hatch shape + type guard
+// stands in for the SDK's generic ToolUIPart/DynamicToolUIPart union here.
+type ToolPartLike = {
+  type: string;
+  toolName?: string;
+  state: "input-streaming" | "input-available" | "approval-requested" | "approval-responded" | "output-available" | "output-error";
+  input?: unknown;
+  output?: unknown;
+};
+
+function asToolPart(part: { type: string }): ToolPartLike | null {
+  if (part.type === "dynamic-tool" || part.type.startsWith("tool-")) {
+    return part as unknown as ToolPartLike;
+  }
+  return null;
+}
+
+function toolResultLabel(toolName: string, output: unknown): string {
+  if (toolName === "search_notes" && typeof output === "object" && output !== null && "results" in output) {
+    const results = (output as { results: unknown[] }).results;
+    return results.length > 0 ? `Found ${results.length} relevant note(s)` : "No matching notes found";
+  }
+  if (toolName.startsWith("community_db_")) {
+    return "Got a result from the community database";
+  }
+  return "Done";
 }
 
 export function ReviewForm({ heroes }: { heroes: Hero[] }) {
@@ -30,9 +80,23 @@ export function ReviewForm({ heroes }: { heroes: Hero[] }) {
   // response matching the most recent pick is ever applied to state.
   const matchHistoryRequestId = useRef(0);
 
-  const { completion, complete, isLoading, error } = useCompletion({
-    api: "/api/review",
-    streamProtocol: "text",
+  // useChat reads options (including transport) via its own internal
+  // "latest options" ref on every send, so a fresh transport closing over
+  // the current matchId/accountId on every render is always up to date —
+  // no memoization or extra ref-juggling needed here.
+  const { messages, sendMessage, status, error } = useChat({
+    transport: new DefaultChatTransport({
+      api: "/api/review",
+      // The server only ever reads matchId/accountId from the body — it
+      // has no concept of chat history — so this replaces useChat's
+      // default {messages: [...]} body entirely rather than extending it.
+      prepareSendMessagesRequest: () => ({
+        body: {
+          matchId: Number(matchId),
+          accountId: Number(accountId),
+        },
+      }),
+    }),
     onFinish: async () => {
       const supabase = createClient();
       // The server stores match_id as String(Number(matchId)) — e.g. a
@@ -51,6 +115,9 @@ export function ReviewForm({ heroes }: { heroes: Hero[] }) {
       setReviewId(data?.id ?? null);
     },
   });
+
+  const isLoading = status === "submitted" || status === "streaming";
+  const assistantMessage = [...messages].reverse().find((m) => m.role === "assistant");
 
   async function handleSteamSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -194,9 +261,7 @@ export function ReviewForm({ heroes }: { heroes: Hero[] }) {
           e.preventDefault();
           setReviewId(null);
           setPublishedSlug(null);
-          complete("Review this match", {
-            body: { matchId: Number(matchId), accountId: Number(accountId) },
-          });
+          sendMessage({ text: "Review this match" });
         }}
         className="flex flex-col gap-4"
       >
@@ -231,10 +296,39 @@ export function ReviewForm({ heroes }: { heroes: Hero[] }) {
 
       {error && <p className="text-sm text-red-600 dark:text-red-400">{error.message}</p>}
 
-      {completion && (
-        <pre className="whitespace-pre-wrap rounded border border-black/[.1] p-4 text-sm dark:border-white/[.15]">
-          {completion}
-        </pre>
+      {assistantMessage && (
+        <div className="flex flex-col gap-2">
+          {assistantMessage.parts.map((part, i) => {
+            // search_notes has a real static Zod schema, so the server
+            // reconciles it into a typed "tool-search_notes" part; the
+            // community_db_* MCP tools are only known at request time
+            // (fetched live from a third-party server), so those arrive
+            // as the generic "dynamic-tool" part instead. Both need to be
+            // handled here for the tool-call trace to be complete.
+            const toolPart = asToolPart(part);
+            if (toolPart) {
+              const toolName = toolPart.type === "dynamic-tool" ? (toolPart.toolName ?? "unknown tool") : toolPart.type.slice("tool-".length);
+              return (
+                <p key={i} className="text-xs italic text-zinc-500 dark:text-zinc-400">
+                  {toolPart.state === "output-available"
+                    ? toolResultLabel(toolName, toolPart.output)
+                    : toolCallLabel(toolName, toolPart.input)}
+                </p>
+              );
+            }
+            if (part.type === "text" && part.text) {
+              return (
+                <pre
+                  key={i}
+                  className="whitespace-pre-wrap rounded border border-black/[.1] p-4 text-sm dark:border-white/[.15]"
+                >
+                  {part.text}
+                </pre>
+              );
+            }
+            return null;
+          })}
+        </div>
       )}
 
       {reviewId && !publishedSlug && (
