@@ -12,7 +12,11 @@ export default defineConfig({
   webServer: {
     command: "npm run dev",
     url: "http://localhost:3000",
-    reuseExistingServer: true,
+    // Locally, reuse a dev server already running on :3000 (faster).
+    // In CI, always start a fresh one — reusing unconditionally risks a
+    // leftover process from a prior job silently serving a stale build,
+    // letting both specs pass against the wrong commit.
+    reuseExistingServer: !process.env.CI,
     timeout: 30_000,
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],

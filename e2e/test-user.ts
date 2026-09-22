@@ -3,11 +3,21 @@ import { createClient } from "@supabase/supabase-js";
 // Test-only accounts, created and deleted by name-scoped id — never a
 // blanket "delete all users" sweep. See project memory:
 // never-blanket-delete-test-users.
+//
+// This intentionally does NOT import createAdminClient from
+// src/lib/supabase/admin.ts, even though it constructs an equivalent
+// client — verified live that admin.ts's `import "server-only"` throws
+// unconditionally when loaded outside Next.js's build pipeline (Next
+// swaps in a no-op version only for its own server bundles; Playwright
+// runs test files directly through Node, with no such substitution).
+// Options are kept in sync with admin.ts by hand instead.
 function adminClient() {
-  return createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  );
+  return createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
 }
 
 export async function createTestUser() {
@@ -27,5 +37,11 @@ export async function createTestUser() {
 
 export async function deleteTestUser(userId: string) {
   const admin = adminClient();
-  await admin.auth.admin.deleteUser(userId);
+  const { error } = await admin.auth.admin.deleteUser(userId);
+  if (error) {
+    // Surface this loudly rather than swallowing it — a silently failed
+    // cleanup leaves an orphaned playwright-test+ account with no signal
+    // in CI logs, accumulating across repeated runs.
+    throw new Error(`Failed to delete Playwright test user ${userId}: ${error.message}`);
+  }
 }
