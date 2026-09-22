@@ -8,7 +8,7 @@ Three features, each built around a real OpenRouter LLM call, not a decorative c
 
 1. **Laning Advisor** — pick your hero, lane partner, and enemy laner(s). An LLM ("Analyst" persona) synthesizes live win-rate/matchup/item data from the [Deadlock community API](https://api.deadlock-api.com) into a concrete laning buy order.
 2. **Itemization Advisor** — same idea, reasoning across the entire 6-hero enemy team at once and weighing trade-offs a static stats page can't.
-3. **Post-Match Reviewer** — given a finished match, an LLM ("Coach" persona) reviews your performance agentically: it decides for itself whether to search your own past reviews (pgvector RAG) or query the official [Deadlock MCP server](https://deadlock-api.com/data-dumps) for broader context, rather than always doing either.
+3. **Post-Match Reviewer** — given a finished match, an LLM ("Coach" persona) reviews your performance agentically: it decides for itself whether to search your own past reviews (pgvector RAG) or query the official [Deadlock MCP server](https://deadlock-api.com/data-dumps) for broader context, rather than always doing either. Find your own real matches by Steam name instead of typing a match ID by hand, and watch each tool call the agent makes render live (e.g. "Searching your notes...") before the final review.
 
 **Why it's pointless without the LLM:** the underlying stats are already public on deadlock-api.com. The value here is an LLM synthesizing up to 7 simultaneous hero matchups into one decision, and reflecting on a specific match's events in natural language — strip out the LLM call and there's no app left, just a stats dashboard that already exists elsewhere.
 
@@ -18,13 +18,14 @@ Three features, each built around a real OpenRouter LLM call, not a decorative c
 
 ## Optional task(s) completed
 
-This project completed five optional tasks (against a minimum of one):
+This project completed six optional tasks (against a minimum of one):
 
-- **Agentic RAG** (Hard) — the post-match reviewer's `search_notes` tool does real pgvector semantic search over hero-kit text and the player's own past reviews; the model decides whether/what to search, not a fixed retrieval step.
+- **Agentic RAG** (Hard) — the post-match reviewer's `search_notes` tool does real pgvector semantic search over hero-kit text and the player's own past reviews; the model decides whether/what to search, chains it with a second `community_db_*` MCP tool where useful, and each call renders live in the UI rather than only being visible server-side.
 - **Shareable AI Outputs** (Hard) — published reviews get a public, unauthenticated `/review/[slug]` URL; everything else in the app stays behind auth.
 - **Tuned System-Prompt Persona** (Medium) — two deliberately distinct voices: the Analyst (terse, decisive, buy-order-first) and the Coach (reflective, teaching), tuned as their own focused passes.
 - **Playwright Tests** (Medium) — `e2e/` covers the AI feature's happy path (a real, non-mocked AI response) and the signed-out visitor lockout.
 - **Deploy to Vercel** (Medium) — see the live URL above.
+- **Streaming responses** (Easy) — every AI feature streams token-by-token via the Vercel AI SDK (`useCompletion`/`useChat`), not returned as a single blocked-on completion.
 
 ## Running it locally
 
