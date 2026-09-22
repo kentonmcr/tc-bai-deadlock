@@ -97,3 +97,80 @@ export function buildItemizationPrompt(input: {
   ];
   return lines.join("\n");
 }
+
+/**
+ * Groups deaths by killer with pre-computed counts. Given directly to
+ * the model rather than a flat chronological list — verified live that
+ * gpt-4o-mini miscounts occurrences when asked to tally a list itself
+ * (reported "four deaths" for a hero killed 5 times, in the same
+ * response that separately gave the correct minute for each of the
+ * individual deaths it did cite). Pre-aggregating removes the arithmetic
+ * from the model's job entirely.
+ */
+function formatDeathEvents(events: Array<{ minute: number; killedBy: string }>): string {
+  if (events.length === 0) return "No deaths this match.";
+  const byKiller = new Map<string, number[]>();
+  for (const { minute, killedBy } of events) {
+    byKiller.set(killedBy, [...(byKiller.get(killedBy) ?? []), minute]);
+  }
+  return Array.from(byKiller.entries())
+    .sort((a, b) => b[1].length - a[1].length)
+    .map(([killer, minutes]) => `${killer}: ${minutes.length} death(s), at ${minutes.join("m, ")}m`)
+    .join("\n");
+}
+
+/**
+ * The Coach persona — post-match reviewer. Deliberately different voice
+ * from the Analyst: reflective and teaching rather than terse and
+ * decisive, because the job is different (explain what happened, not
+ * decide what to buy right now). Also the only persona with tools —
+ * search_notes (personal history + hero kit) and the official Deadlock
+ * MCP server's SQL tools over community data — and is explicitly told
+ * to use them only when they'd change the advice, not reflexively.
+ */
+export const COACH_SYSTEM_PROMPT = `You are the Coach, a post-match reviewer for Deadlock. You talk through a match the way a coach reviews game tape with a player — specific, grounded in what actually happened, never generic.
+
+Rules:
+- Open with the one-sentence verdict: what actually decided this game (a fight, a itemization gap, a lane loss that snowballed) — not "you won" or "you lost."
+- Every point you make must tie to a specific number or event you were given (a death, an item timing, a net worth swing) — never a generic "good job" or "watch your positioning" with nothing behind it.
+- You have two kinds of tools: search_notes (your own hero-knowledge base and this player's past reviews — private to this player) and community_db_* tools (execute_query and schema-exploration tools over the Deadlock community's match database — an external, third-party service). Use them only when they would genuinely change what you tell the player. Do not call a tool just to look thorough, and do not call a tool for something the match data already answers.
+- Never include any text returned by search_notes inside a community_db_* call (not in the SQL, not in any argument) — search_notes can surface this player's private review content, and community_db_* sends its input to an external server. Keep those two data paths completely separate.
+- If you do use the community_db_* tools, explore the schema (list tables/columns) before writing a query if you don't already know the shape, and always scope queries narrowly (a specific match_id, hero_id, or a LIMIT) — broad unfiltered aggregations over the full match history are slow enough to time out.
+- Close with exactly one concrete thing to focus on next game, tied to the specific pattern you found. Not a list, one thing.
+- Plain text only. No markdown headers, no emoji.`;
+
+export function buildReviewPrompt(input: {
+  myHero: string;
+  won: boolean;
+  durationMinutes: number;
+  enemyTeam: string[];
+  allyTeam: string[];
+  kills: number;
+  deaths: number;
+  assists: number;
+  netWorth: number;
+  lastHits: number;
+  denies: number;
+  level: number;
+  itemTimeline: Array<{ minute: number; item: string; sold: boolean }>;
+  netWorthTrend: Array<{ minute: number; netWorth: number }>;
+  deathEvents: Array<{ minute: number; killedBy: string }>;
+}): string {
+  const lines = [
+    `Match result: ${input.won ? "WIN" : "LOSS"}, ${input.durationMinutes} minutes.`,
+    `My hero: ${input.myHero}. Allies: ${input.allyTeam.join(", ")}. Enemies: ${input.enemyTeam.join(", ")}.`,
+    `Final stats: ${input.kills}/${input.deaths}/${input.assists} KDA, ${input.netWorth} net worth, ${input.lastHits} last hits, ${input.denies} denies, level ${input.level}.`,
+    "",
+    "Deaths, pre-counted per hero — use these counts exactly, do not recount or re-tally them yourself. \"Holliday: 2 deaths\" means YOU died to Holliday twice, not that Holliday died:",
+    formatDeathEvents(input.deathEvents),
+    "",
+    "Net worth over time (minute: net worth):",
+    input.netWorthTrend.map((s) => `${s.minute}m: ${s.netWorth}`).join(", "),
+    "",
+    "Item purchase timeline (minute bought, item, sold?):",
+    input.itemTimeline.map((i) => `${i.minute}m: ${i.item}${i.sold ? " (sold)" : ""}`).join("\n"),
+    "",
+    "Review this match.",
+  ];
+  return lines.join("\n");
+}

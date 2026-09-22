@@ -30,10 +30,16 @@ export default async function AppPage() {
             Full-match itemization plan against the whole enemy team.
           </p>
         </Link>
+        <Link
+          href="/app/review/new"
+          className="flex-1 rounded-lg border border-black/[.08] px-5 py-4 text-left dark:border-white/[.145]"
+        >
+          <span className="font-medium">Post-Match Review</span>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+            Coach review of a finished match, with an option to publish a shareable link.
+          </p>
+        </Link>
       </div>
-      <p className="text-sm text-zinc-500 dark:text-zinc-500">
-        Post-match review lands in a later build phase.
-      </p>
       <form action={signOut}>
         <button
           type="submit"
