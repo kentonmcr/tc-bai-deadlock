@@ -42,6 +42,43 @@ export async function requireUser(
   return { user };
 }
 
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+const RATE_LIMIT_MAX_PER_HOUR = 10;
+
+/**
+ * Caps how many paid LLM calls a single user can trigger per hour, counted
+ * against the table each route already writes its own output to
+ * (advisor_sessions for the two advisors, match_reviews for the post-match
+ * reviewer). Every AI-calling route was otherwise unbounded — anyone
+ * authenticated could trigger unlimited real OpenRouter completions.
+ * Fails open on a read error (a monitoring hiccup shouldn't block a
+ * legitimate request), matching the existing stats_cache read-failure
+ * convention in deadlock-api.ts.
+ */
+export async function checkRateLimit(
+  supabase: SupabaseClient,
+  userId: string,
+  table: "advisor_sessions" | "match_reviews",
+): Promise<Response | null> {
+  const since = new Date(Date.now() - RATE_LIMIT_WINDOW_MS).toISOString();
+  const { count, error } = await supabase
+    .from(table)
+    .select("id", { count: "exact", head: true })
+    .eq("user_id", userId)
+    .gte("created_at", since);
+  if (error) {
+    console.error(`Rate limit check failed for ${table}:`, error.message);
+    return null;
+  }
+  if ((count ?? 0) >= RATE_LIMIT_MAX_PER_HOUR) {
+    return new Response(
+      `You've hit the limit of ${RATE_LIMIT_MAX_PER_HOUR} requests per hour for this feature. Try again later.`,
+      { status: 429 },
+    );
+  }
+  return null;
+}
+
 /**
  * Validates a single hero ID against the real hero list. Returns null for
  * anything malformed or unknown — this is the only thing standing between
