@@ -21,8 +21,10 @@ const securityHeaders = [
       `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https:",
-      "font-src 'self'",
-      "connect-src 'self' https://*.supabase.co",
+      // @deadlock-api/ui-core's card components load their own font and
+      // fetch their own hero/item data client-side from these hosts.
+      "font-src 'self' https://assets-bucket.deadlock-api.com",
+      "connect-src 'self' https://*.supabase.co https://api.deadlock-api.com https://assets-bucket.deadlock-api.com",
       "object-src 'none'",
       "base-uri 'self'",
       "form-action 'self'",

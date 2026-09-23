@@ -184,7 +184,7 @@ export function ReviewForm({ heroes }: { heroes: Hero[] }) {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-col gap-3 rounded border border-black/[.1] p-4 dark:border-white/[.15]">
+      <div className="flex flex-col gap-3 rounded border border-border bg-surface p-4">
         <h2 className="text-sm font-medium">Find your matches by Steam name</h2>
         <form onSubmit={handleSteamSearch} className="flex gap-2">
           <input
@@ -192,21 +192,21 @@ export function ReviewForm({ heroes }: { heroes: Hero[] }) {
             value={steamQuery}
             onChange={(e) => setSteamQuery(e.target.value)}
             placeholder="Your Steam display name"
-            className="flex-1 rounded border border-black/[.1] px-3 py-2 text-sm dark:border-white/[.15] dark:bg-transparent"
+            className="flex-1 rounded border border-border bg-background px-3 py-2 text-sm text-foreground focus:border-accent focus:outline-none"
           />
           <button
             type="submit"
             disabled={searching || !steamQuery.trim()}
-            className="rounded-full border border-black/[.08] px-4 py-2 text-sm font-medium disabled:opacity-40 dark:border-white/[.145]"
+            className="rounded-full border border-border px-4 py-2 text-sm font-medium transition hover:border-accent disabled:opacity-40"
           >
             {searching ? "Searching..." : "Search"}
           </button>
         </form>
 
-        {searchError && <p className="text-sm text-red-600 dark:text-red-400">{searchError}</p>}
+        {searchError && <p className="text-sm text-danger">{searchError}</p>}
 
         {profiles && profiles.length === 0 && (
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">
+          <p className="text-sm text-muted">
             No Steam profiles matched that name.
           </p>
         )}
@@ -218,14 +218,14 @@ export function ReviewForm({ heroes }: { heroes: Hero[] }) {
                 <button
                   type="button"
                   onClick={() => handlePickProfile(p)}
-                  className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-black/[.04] dark:hover:bg-white/[.06] ${
-                    selectedProfile?.account_id === p.account_id ? "bg-black/[.06] dark:bg-white/[.1]" : ""
+                  className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm hover:bg-accent/10 ${
+                    selectedProfile?.account_id === p.account_id ? "bg-accent/15 shadow-[inset_0_0_0_1px_var(--accent)]" : ""
                   }`}
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img src={p.avatar} alt="" referrerPolicy="no-referrer" className="h-6 w-6 rounded" />
                   <span>{p.personaname}</span>
-                  <span className="text-xs text-zinc-500">
+                  <span className="text-xs text-muted">
                     {p.matches_played_last_30d} matches / 30d
                   </span>
                 </button>
@@ -234,11 +234,11 @@ export function ReviewForm({ heroes }: { heroes: Hero[] }) {
           </ul>
         )}
 
-        {loadingMatches && <p className="text-sm text-zinc-600 dark:text-zinc-400">Loading match history...</p>}
-        {matchesError && <p className="text-sm text-red-600 dark:text-red-400">{matchesError}</p>}
+        {loadingMatches && <p className="text-sm text-muted">Loading match history...</p>}
+        {matchesError && <p className="text-sm text-danger">{matchesError}</p>}
 
         {matches && matches.length === 0 && (
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">No recent matches found for this account.</p>
+          <p className="text-sm text-muted">No recent matches found for this account.</p>
         )}
 
         {matches && matches.length > 0 && (
@@ -248,14 +248,14 @@ export function ReviewForm({ heroes }: { heroes: Hero[] }) {
                 <button
                   type="button"
                   onClick={() => setMatchId(String(m.match_id))}
-                  className={`flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm hover:bg-black/[.04] dark:hover:bg-white/[.06] ${
-                    matchId === String(m.match_id) ? "bg-black/[.06] dark:bg-white/[.1]" : ""
+                  className={`flex w-full items-center justify-between rounded px-2 py-1.5 text-left text-sm hover:bg-accent/10 ${
+                    matchId === String(m.match_id) ? "bg-accent/15 shadow-[inset_0_0_0_1px_var(--accent)]" : ""
                   }`}
                 >
                   <span>
                     {heroName(heroes, m.hero_id)} — {new Date(m.start_time * 1000).toLocaleDateString()}
                   </span>
-                  <span className="text-xs text-zinc-500">
+                  <span className="text-xs text-muted">
                     {m.player_match_outcome === 1 ? "Win" : "Loss"} · {m.player_kills}/{m.player_deaths}/
                     {m.player_assists}
                   </span>
@@ -282,7 +282,7 @@ export function ReviewForm({ heroes }: { heroes: Hero[] }) {
             value={matchId}
             onChange={(e) => setMatchId(e.target.value)}
             required
-            className="rounded border border-black/[.1] px-3 py-2 dark:border-white/[.15] dark:bg-transparent"
+            className="rounded border border-border bg-background px-3 py-2 text-foreground focus:border-accent focus:outline-none"
           />
         </label>
         <label className="flex flex-col gap-1 text-sm">
@@ -292,19 +292,19 @@ export function ReviewForm({ heroes }: { heroes: Hero[] }) {
             value={accountId}
             onChange={(e) => setAccountId(e.target.value)}
             required
-            className="rounded border border-black/[.1] px-3 py-2 dark:border-white/[.15] dark:bg-transparent"
+            className="rounded border border-border bg-background px-3 py-2 text-foreground focus:border-accent focus:outline-none"
           />
         </label>
         <button
           type="submit"
           disabled={isLoading || !matchId || !accountId}
-          className="rounded-full bg-foreground px-5 py-3 text-sm font-medium text-background disabled:opacity-40"
+          className="rounded-full bg-accent px-5 py-3 text-sm font-medium text-background transition hover:bg-accent-strong disabled:opacity-40"
         >
           {isLoading ? "Reviewing..." : "Review this match"}
         </button>
       </form>
 
-      {error && <p className="text-sm text-red-600 dark:text-red-400">{error.message}</p>}
+      {error && <p className="text-sm text-danger">{error.message}</p>}
 
       {assistantMessage && (
         <div className="flex flex-col gap-2">
@@ -319,7 +319,7 @@ export function ReviewForm({ heroes }: { heroes: Hero[] }) {
             if (toolPart) {
               const toolName = toolPart.type === "dynamic-tool" ? (toolPart.toolName ?? "unknown tool") : toolPart.type.slice("tool-".length);
               return (
-                <p key={i} className="text-xs italic text-zinc-500 dark:text-zinc-400">
+                <p key={i} className="text-xs italic text-muted">
                   {toolPart.state === "output-available"
                     ? toolResultLabel(toolName, toolPart.output)
                     : toolPart.state === "output-error"
@@ -332,7 +332,7 @@ export function ReviewForm({ heroes }: { heroes: Hero[] }) {
               return (
                 <pre
                   key={i}
-                  className="whitespace-pre-wrap rounded border border-black/[.1] p-4 text-sm dark:border-white/[.15]"
+                  className="whitespace-pre-wrap rounded border border-border bg-surface p-4 text-sm text-foreground"
                 >
                   {part.text}
                 </pre>
@@ -347,7 +347,7 @@ export function ReviewForm({ heroes }: { heroes: Hero[] }) {
         <button
           onClick={handlePublish}
           disabled={publishing}
-          className="self-start rounded-full border border-black/[.08] px-5 py-3 text-sm font-medium dark:border-white/[.145]"
+          className="self-start rounded-full border border-border px-5 py-3 text-sm font-medium transition hover:border-accent"
         >
           {publishing ? "Publishing..." : "Publish (get a shareable link)"}
         </button>
