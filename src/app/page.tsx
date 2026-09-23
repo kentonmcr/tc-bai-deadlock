@@ -14,21 +14,21 @@ export default async function Home() {
 
   return (
     <main className="flex flex-1 flex-col items-center justify-center gap-6 px-6 text-center">
-      <h1 className="text-3xl font-semibold tracking-tight">Deadlock Coach</h1>
-      <p className="max-w-md text-zinc-600 dark:text-zinc-400">
+      <h1 className="text-3xl font-semibold tracking-tight text-accent">Deadlock Coach</h1>
+      <p className="max-w-md text-muted">
         AI-powered laning, itemization, and post-match coaching for Deadlock —
         grounded in live matchup data, not guesses.
       </p>
       <div className="flex gap-4">
         <Link
           href="/login"
-          className="rounded-full bg-foreground px-5 py-3 text-sm font-medium text-background"
+          className="rounded-full bg-accent px-5 py-3 text-sm font-medium text-background transition hover:bg-accent-strong"
         >
           Sign in
         </Link>
         <Link
           href="/signup"
-          className="rounded-full border border-black/[.08] px-5 py-3 text-sm font-medium dark:border-white/[.145]"
+          className="rounded-full border border-border px-5 py-3 text-sm font-medium text-foreground transition hover:border-accent"
         >
           Create account
         </Link>

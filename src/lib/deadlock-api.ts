@@ -1,4 +1,5 @@
 import "server-only";
+import type { HeroClassName } from "@deadlock-api/ui-core";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 const BASE_URL = "https://api.deadlock-api.com";
@@ -8,6 +9,12 @@ export type Hero = {
   id: number;
   name: string;
   images?: { icon_hero_card_webp?: string; icon_hero_card?: string };
+  // Already present on every raw /v1/assets/heroes entry (verified live) —
+  // declared here so this same object can be passed straight to
+  // DlHeroCard's heroData prop, letting it skip its own client-side fetch
+  // instead of every hero card independently re-fetching the same data
+  // this app already fetched once server-side (flagged by security scan).
+  class_name: HeroClassName;
 };
 
 export type Item = {

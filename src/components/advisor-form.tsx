@@ -80,16 +80,16 @@ export function AdvisorForm({
         <button
           type="submit"
           disabled={!canSubmit}
-          className="rounded-full bg-foreground px-5 py-3 text-sm font-medium text-background disabled:opacity-40"
+          className="rounded-full bg-accent px-5 py-3 text-sm font-medium text-background transition hover:bg-accent-strong disabled:opacity-40"
         >
           {isLoading ? loadingLabel : submitLabel}
         </button>
       </form>
 
-      {error && <p className="text-sm text-red-600 dark:text-red-400">{error.message}</p>}
+      {error && <p className="text-sm text-danger">{error.message}</p>}
 
       {completion && (
-        <pre className="whitespace-pre-wrap rounded border border-black/[.1] p-4 text-sm dark:border-white/[.15]">
+        <pre className="whitespace-pre-wrap rounded border border-border bg-surface p-4 text-sm text-foreground">
           {completion}
         </pre>
       )}
