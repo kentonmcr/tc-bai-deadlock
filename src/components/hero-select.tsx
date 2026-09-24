@@ -15,14 +15,12 @@ export function HeroSelect({
   label,
   value,
   onChange,
-  className,
   popoverAlign = "left",
 }: {
   heroes: Hero[];
   label: string;
   value: number;
   onChange: (id: number) => void;
-  className?: string;
   /** Which edge of the trigger the popover's own edge aligns to — "left"
    * (default) works for most placements; use "right" for triggers near
    * the right edge of their container so the popover opens inward
@@ -33,6 +31,7 @@ export function HeroSelect({
   const [query, setQuery] = useState("");
   const [activeId, setActiveId] = useState<number | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const buttonRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
 
@@ -50,7 +49,10 @@ export function HeroSelect({
       }
     }
     function handleKey(e: KeyboardEvent) {
-      if (e.key === "Escape") setIsOpen(false);
+      if (e.key === "Escape") {
+        setIsOpen(false);
+        triggerRef.current?.focus();
+      }
     }
     document.addEventListener("mousedown", handlePointerDown);
     document.addEventListener("keydown", handleKey);
@@ -69,6 +71,7 @@ export function HeroSelect({
   function selectHero(id: number) {
     onChange(id);
     setIsOpen(false);
+    triggerRef.current?.focus();
   }
 
   const activeIndex = Math.max(
@@ -106,8 +109,9 @@ export function HeroSelect({
   }
 
   return (
-    <div ref={containerRef} className={`relative ${className ?? ""}`}>
+    <div ref={containerRef} className="relative">
       <button
+        ref={triggerRef}
         type="button"
         onClick={() => (isOpen ? setIsOpen(false) : open())}
         aria-haspopup="dialog"
@@ -141,6 +145,7 @@ export function HeroSelect({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Search heroes..."
+            aria-label={`Search heroes for ${label}`}
             className="mb-2 w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-accent focus:outline-none"
           />
           <div
