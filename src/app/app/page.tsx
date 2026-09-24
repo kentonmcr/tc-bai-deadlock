@@ -31,6 +31,13 @@ export default async function AppPage() {
             Coach review of a finished match, with an option to publish a shareable link.
           </p>
         </Link>
+        <Link
+          href="/app/history"
+          className="flex-1 rounded-lg border border-border px-5 py-4 text-left transition hover:border-accent"
+        >
+          <span className="font-medium">History</span>
+          <p className="text-sm text-muted">Every match plan and review you&apos;ve generated.</p>
+        </Link>
       </div>
       <form action={signOut}>
         <button
