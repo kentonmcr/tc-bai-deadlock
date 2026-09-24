@@ -41,20 +41,32 @@ function formatItemFacts(
     .join("\n");
 }
 
-export function buildLaningPrompt(input: {
+/**
+ * Combines the laning and itemization asks into one prompt, since the
+ * match advisor collects a full 6v6 draft at once (real lane-select
+ * screens show everyone simultaneously — there's no staggered reveal to
+ * respect) rather than the earlier two-separate-flows split. Two clearly
+ * labeled sections rather than two separate LLM calls stitched together
+ * client-side, so the model can't drift persona/tone between them.
+ */
+export function buildMatchPrompt(input: {
   myHero: string;
   partnerHero: string;
-  enemyLaners: string[];
-  matchupFacts: MatchupFact[];
+  laneEnemies: string[];
+  enemyTeam: string[];
+  laningMatchupFacts: MatchupFact[];
   laneMatchup: { winRate: number | null; matches: number | null; netWorthDiff: number | null } | null;
   synergy: MatchupFact;
-  topItems: Array<{ name: string; winRate: number; matches: number; avgBuyTimeRelative: number }>;
+  laningTopItems: Array<{ name: string; winRate: number; matches: number; avgBuyTimeRelative: number }>;
+  fullTeamMatchupFacts: MatchupFact[];
+  itemizationTopItems: Array<{ name: string; winRate: number; matches: number; avgBuyTimeRelative: number }>;
 }): string {
   const lines = [
-    `Laning phase. My hero: ${input.myHero}. Lane partner: ${input.partnerHero}. Enemy laner(s): ${input.enemyLaners.join(", ")}.`,
+    `My hero: ${input.myHero}. Lane partner: ${input.partnerHero}. My lane's enemies: ${input.laneEnemies.join(", ")}. Full enemy team: ${input.enemyTeam.join(", ")}.`,
     "",
-    "1v1 matchup data (win rate is from MY side's perspective):",
-    formatMatchupFacts(input.matchupFacts),
+    "=== EARLY GAME — my lane ===",
+    "1v1 matchup data against my lane's enemies (win rate is from MY side's perspective):",
+    formatMatchupFacts(input.laningMatchupFacts),
     "",
     `Lane partner synergy: ${
       input.synergy.winRate !== null
@@ -62,7 +74,7 @@ export function buildLaningPrompt(input: {
         : "no data"
     }`,
     "",
-input.laneMatchup && input.laneMatchup.winRate !== null
+    input.laneMatchup && input.laneMatchup.winRate !== null
       ? `This exact duo-vs-duo lane matchup: ${(input.laneMatchup.winRate * 100).toFixed(1)}% win rate (${input.laneMatchup.matches} games${
           input.laneMatchup.netWorthDiff !== null
             ? `, avg net worth diff at sample time: ${input.laneMatchup.netWorthDiff.toFixed(0)}`
@@ -70,30 +82,17 @@ input.laneMatchup && input.laneMatchup.winRate !== null
         })`
       : "No duo-vs-duo data available for this exact combination — reason from the 1v1 matchups and synergy above instead.",
     "",
-    "Early-game item performance for my hero against this matchup (win rate, sample size, average buy timing):",
-    formatItemFacts(input.topItems),
+    "Early-game item performance for my hero against my lane's enemies (win rate, sample size, average buy timing):",
+    formatItemFacts(input.laningTopItems),
     "",
-    "Give me the laning-phase buy order.",
-  ];
-  return lines.join("\n");
-}
-
-export function buildItemizationPrompt(input: {
-  myHero: string;
-  enemyTeam: string[];
-  matchupFacts: MatchupFact[];
-  topItems: Array<{ name: string; winRate: number; matches: number; avgBuyTimeRelative: number }>;
-}): string {
-  const lines = [
-    `Full match. My hero: ${input.myHero}. Enemy team: ${input.enemyTeam.join(", ")}.`,
+    "=== LATE GAME — full match, full enemy team ===",
+    "1v1 matchup data against every enemy hero (win rate is from MY side's perspective):",
+    formatMatchupFacts(input.fullTeamMatchupFacts),
     "",
-    "1v1 matchup data against each enemy hero (win rate is from MY side's perspective):",
-    formatMatchupFacts(input.matchupFacts),
+    "Item performance for my hero against this full enemy team composition (win rate, sample size, average buy timing):",
+    formatItemFacts(input.itemizationTopItems),
     "",
-    "Item performance for my hero specifically against this enemy team composition (win rate, sample size, average buy timing):",
-    formatItemFacts(input.topItems),
-    "",
-    "Give me the itemization plan for the rest of the match: what to prioritize and why, weighing the trade-offs across all six matchups above rather than just the worst one.",
+    "Give me two clearly labeled sections: (1) the laning-phase buy order for my specific lane, (2) the itemization plan for the rest of the match weighing the trade-offs across all six enemy matchups, not just my lane opponents.",
   ];
   return lines.join("\n");
 }

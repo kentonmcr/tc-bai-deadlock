@@ -9,16 +9,19 @@ competitive MOBA. Players struggle to itemize and counter-pick correctly
 because no settled meta exists yet, and there is no single source that
 turns raw win-rate data into a decision for *your specific* matchup.
 
-The app has three features, all built around one LLM call each:
+The app has two features, both built around real LLM calls:
 
-1. **Laning advisor** — pick your hero, your lane partner, and the enemy
-   laner(s). The server fetches live hero/matchup/item stats from the
-   Deadlock community API (`api.deadlock-api.com`) and an LLM ("Analyst"
-   persona) synthesizes them into a concrete laning buy order.
-2. **Itemization advisor** — same idea, but reasoning across the entire
-   6-hero enemy team at once, weighing trade-offs a static stats page
-   can't.
-3. **Post-match reviewer** — given a finished match, an LLM ("Coach"
+1. **Match advisor** — set the full 6v6 draft, lane by lane (Yellow/Blue/
+   Green, matching the game's own lane colors and map — see `/app/match`).
+   The server fetches live hero/matchup/item stats from the Deadlock
+   community API (`api.deadlock-api.com`) and an LLM ("Analyst" persona)
+   synthesizes them into one response: a laning-phase buy order for your
+   specific lane, plus a full itemization plan against the entire enemy
+   team. Replaces what used to be two separate advisors (laning,
+   itemization) — merged because Deadlock's hero select is simultaneous,
+   not a staggered draft, so the full lineup is always known at once
+   anyway; see `src/lib/prompts.ts`'s `buildMatchPrompt`.
+2. **Post-match reviewer** — given a finished match, an LLM ("Coach"
    persona) reviews your itemization and decisions, agentically deciding
    whether to search your own match history (pgvector RAG) or the
    official Deadlock MCP server for supporting context.
@@ -27,10 +30,10 @@ The app has three features, all built around one LLM call each:
 (win rates, item timing, matchups) are already public on deadlock-api.com.
 This app is pointless without the LLM specifically because raw stats
 tables don't make a decision for you — the value is an LLM synthesizing
-7 simultaneous hero matchups (yours + your partner's + up to 6 enemies)
-into one buy order, and reflecting on a specific match's events in
-natural language. Strip out the LLM call and there's no app left, only a
-stats dashboard that already exists elsewhere.
+a full 12-hero draft (your team + the enemy team, across all three lanes)
+into one early-game-plus-late-game decision, and reflecting on a specific
+match's events in natural language. Strip out the LLM call and there's no
+app left, only a stats dashboard that already exists elsewhere.
 
 ## Architecture at a glance
 
@@ -44,6 +47,12 @@ stats dashboard that already exists elsewhere.
 - Full design rationale lives in `~/.claude/plans/i-am-a-student-serialized-stroustrup.md`
   on the author's machine (brainstormed via `superpowers:brainstorming`,
   reviewed by the `ai-architect` subagent).
+- Hero portraits (`HeroSelect`) render via `@deadlock-api/ui-react`'s
+  `DlHeroCard`, fed pre-fetched hero data (not `heroId`) so it never makes
+  its own client-side fetch — see the comment in `src/components/
+  hero-select.tsx`. Its required CSS is imported by relative filesystem
+  path in `globals.css` (the package's `exports` field doesn't expose it),
+  a known fragility to a future `node_modules` layout change.
 
 ## AI rules
 

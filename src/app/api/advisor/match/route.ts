@@ -1,7 +1,7 @@
 import { streamText } from "ai";
 import { createClient } from "@/lib/supabase/server";
 import { openrouter, ADVISOR_MODEL } from "@/lib/openrouter";
-import { ANALYST_SYSTEM_PROMPT, buildLaningPrompt } from "@/lib/prompts";
+import { ANALYST_SYSTEM_PROMPT, buildMatchPrompt } from "@/lib/prompts";
 import {
   getHeroes,
   getItems,
@@ -13,7 +13,8 @@ import {
   heroName,
 } from "@/lib/deadlock-api";
 import {
-  MAX_LANING_ENEMIES,
+  MAX_LANE_ENEMIES,
+  MAX_FULL_TEAM_ENEMIES,
   validateHeroId,
   validateEnemyIds,
   counterFactsForHero,
@@ -50,32 +51,40 @@ export async function POST(req: Request) {
 
   const myHero = validateHeroId(heroes, body.myHero);
   const partnerHero = validateHeroId(heroes, body.partnerHero);
-  const enemyLaners = validateEnemyIds(heroes, body.enemyLaners, MAX_LANING_ENEMIES);
+  const enemyTeam = validateEnemyIds(heroes, body.enemyTeam, MAX_FULL_TEAM_ENEMIES);
+  // laneEnemies must be a subset of enemyTeam — the client always sends it
+  // that way, but a request built by hand could claim a "lane enemy" who
+  // isn't even on the enemy team, so intersect rather than trust it.
+  const laneEnemiesRaw = validateEnemyIds(heroes, body.laneEnemies, MAX_LANE_ENEMIES);
+  const laneEnemies = laneEnemiesRaw.filter((id) => enemyTeam.includes(id));
 
-  if (!myHero || !partnerHero || enemyLaners.length === 0) {
+  if (!myHero || !partnerHero || laneEnemies.length === 0 || enemyTeam.length === 0) {
     return new Response(
-      "myHero, partnerHero, and at least one valid enemy laner are required (max 2 enemies)",
+      "myHero, partnerHero, at least one valid laneEnemy (max 2, must be part of enemyTeam), and at least one valid enemyTeam member (max 6) are required",
       { status: 400 },
     );
   }
 
-  let items, counterStats, synergyStats, laneMatchupRows, itemStatRows;
+  let items, counterStats, synergyStats, laneMatchupRows, laningItemStatRows, itemizationItemStatRows;
   try {
-    [items, counterStats, synergyStats, laneMatchupRows, itemStatRows] = await Promise.all([
-      getItems(),
-      getHeroCounterStats(),
-      getHeroSynergyStats(),
-      getLaneMatchupStats([myHero, partnerHero], enemyLaners),
-      getItemStats(myHero, enemyLaners),
-    ]);
+    [items, counterStats, synergyStats, laneMatchupRows, laningItemStatRows, itemizationItemStatRows] =
+      await Promise.all([
+        getItems(),
+        getHeroCounterStats(),
+        getHeroSynergyStats(),
+        getLaneMatchupStats([myHero, partnerHero], laneEnemies),
+        getItemStats(myHero, laneEnemies),
+        getItemStats(myHero, enemyTeam),
+      ]);
   } catch {
     return new Response(DEADLOCK_API_DOWN_MESSAGE, { status: 502 });
   }
 
-  const matchupFacts = enemyLaners.flatMap((enemyId) => [
+  const laningMatchupFacts = laneEnemies.flatMap((enemyId) => [
     ...counterFactsForHero(heroes, counterStats, myHero, [enemyId]),
     ...counterFactsForHero(heroes, counterStats, partnerHero, [enemyId]),
   ]);
+  const fullTeamMatchupFacts = counterFactsForHero(heroes, counterStats, myHero, enemyTeam);
 
   const synergyMatch = findSynergy(synergyStats, myHero, partnerHero);
   const synergy = {
@@ -89,8 +98,7 @@ export async function POST(req: Request) {
         const totalMatches = laneMatchupRows.reduce((sum, r) => sum + r.matches_played, 0);
         const totalWins = laneMatchupRows.reduce((sum, r) => sum + r.wins, 0);
         // Guard against a malformed/missing net_worth_diff on any single row
-        // poisoning the whole weighted average via NaN propagation — this is
-        // independent of totalMatches, so it can't reuse the winRate guard.
+        // poisoning the whole weighted average via NaN propagation.
         const netWorthSum = laneMatchupRows.reduce(
           (sum, r) => (Number.isFinite(r.net_worth_diff) ? sum + r.net_worth_diff * r.matches_played : sum),
           0,
@@ -103,19 +111,23 @@ export async function POST(req: Request) {
       })()
     : null;
 
-  const topItems = topItemFacts(items, itemStatRows, {
+  const laningTopItems = topItemFacts(items, laningItemStatRows, {
     maxBuyTimeRelative: EARLY_GAME_BUY_TIME_THRESHOLD,
     limit: 6,
   });
+  const itemizationTopItems = topItemFacts(items, itemizationItemStatRows, { limit: 8 });
 
-  const prompt = buildLaningPrompt({
+  const prompt = buildMatchPrompt({
     myHero: heroName(heroes, myHero),
     partnerHero: heroName(heroes, partnerHero),
-    enemyLaners: enemyLaners.map((id) => heroName(heroes, id)),
-    matchupFacts,
+    laneEnemies: laneEnemies.map((id) => heroName(heroes, id)),
+    enemyTeam: enemyTeam.map((id) => heroName(heroes, id)),
+    laningMatchupFacts,
     laneMatchup,
     synergy,
-    topItems,
+    laningTopItems,
+    fullTeamMatchupFacts,
+    itemizationTopItems,
   });
 
   const result = streamText({
@@ -123,13 +135,13 @@ export async function POST(req: Request) {
     system: ANALYST_SYSTEM_PROMPT,
     prompt,
     onError: ({ error }) => {
-      console.error("Laning advisor generation error:", error);
+      console.error("Match advisor generation error:", error);
     },
     onEnd: async ({ text }) => {
       await supabase.from("advisor_sessions").insert({
         user_id: user.id,
-        advisor_type: "laning",
-        input: { myHero, partnerHero, enemyLaners },
+        advisor_type: "match",
+        input: { myHero, partnerHero, laneEnemies, enemyTeam },
         advice: text,
         model: ADVISOR_MODEL,
       });

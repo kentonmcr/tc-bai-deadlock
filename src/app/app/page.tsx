@@ -13,21 +13,13 @@ export default async function AppPage() {
       <h1 className="text-2xl font-semibold text-accent">Welcome, {user?.email}</h1>
       <div className="flex w-full flex-col gap-4 sm:flex-row">
         <Link
-          href="/app/laning"
+          href="/app/match"
           className="flex-1 rounded-lg border border-border px-5 py-4 text-left transition hover:border-accent"
         >
-          <span className="font-medium">Laning Advisor</span>
+          <span className="font-medium">Match Advisor</span>
           <p className="text-sm text-muted">
-            Buy order for your hero, your lane partner, and the enemy laner(s).
-          </p>
-        </Link>
-        <Link
-          href="/app/itemization"
-          className="flex-1 rounded-lg border border-border px-5 py-4 text-left transition hover:border-accent"
-        >
-          <span className="font-medium">Itemization Advisor</span>
-          <p className="text-sm text-muted">
-            Full-match itemization plan against the whole enemy team.
+            Set the full 6v6 draft — a laning buy order for your lane, plus a full itemization
+            plan against the enemy team.
           </p>
         </Link>
         <Link

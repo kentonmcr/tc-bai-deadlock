@@ -3,8 +3,8 @@ import type { User, SupabaseClient } from "@supabase/supabase-js";
 import type { Hero, Item, HeroCounterRow, ItemStatRow } from "@/lib/deadlock-api";
 import { findCounterMatchup, heroName, itemName } from "@/lib/deadlock-api";
 
-export const MAX_LANING_ENEMIES = 2;
-export const MAX_ITEMIZATION_ENEMIES = 6;
+export const MAX_LANE_ENEMIES = 2;
+export const MAX_FULL_TEAM_ENEMIES = 6;
 
 // Below this many games, a single-digit sample can produce a 100% (or 0%)
 // win rate that would otherwise crowd out a statistically reliable item

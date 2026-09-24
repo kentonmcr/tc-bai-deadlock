@@ -19,7 +19,7 @@ test("a second user cannot read another user's saved advisor session via RLS", a
       .from("advisor_sessions")
       .insert({
         user_id: owner.userId,
-        advisor_type: "laning",
+        advisor_type: "match",
         input: { probe: true },
         advice: "private test content that must not leak to another user",
         model: "test",

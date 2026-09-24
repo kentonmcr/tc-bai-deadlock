@@ -4,13 +4,12 @@ An AI companion for Valve's Deadlock — an early-access, largely "unsolved" com
 
 ## What it does, and why the AI is the point
 
-Three features, each built around a real OpenRouter LLM call, not a decorative chatbot bolted onto a stats page:
+Two features, each built around a real OpenRouter LLM call, not a decorative chatbot bolted onto a stats page:
 
-1. **Laning Advisor** — pick your hero, lane partner, and enemy laner(s). An LLM ("Analyst" persona) synthesizes live win-rate/matchup/item data from the [Deadlock community API](https://api.deadlock-api.com) into a concrete laning buy order.
-2. **Itemization Advisor** — same idea, reasoning across the entire 6-hero enemy team at once and weighing trade-offs a static stats page can't.
-3. **Post-Match Reviewer** — given a finished match, an LLM ("Coach" persona) reviews your performance agentically: it decides for itself whether to search your own past reviews (pgvector RAG) or query the official [Deadlock MCP server](https://deadlock-api.com/data-dumps) for broader context, rather than always doing either. Find your own real matches by Steam name instead of typing a match ID by hand, and watch each tool call the agent makes render live (e.g. "Searching your notes...") before the final review.
+1. **Match Advisor** — set the full 6v6 draft, lane by lane (Yellow/Blue/Green, matching the game's own lane colors), with a searchable grid of real hero portraits over a translucent map background. An LLM ("Analyst" persona) synthesizes live win-rate/matchup/item data from the [Deadlock community API](https://api.deadlock-api.com) into one response: a laning-phase buy order for your specific lane, and a full itemization plan against the entire enemy team.
+2. **Post-Match Reviewer** — given a finished match, an LLM ("Coach" persona) reviews your performance agentically: it decides for itself whether to search your own past reviews (pgvector RAG) or query the official [Deadlock MCP server](https://deadlock-api.com/data-dumps) for broader context, rather than always doing either. Find your own real matches by Steam name instead of typing a match ID by hand, and watch each tool call the agent makes render live (e.g. "Searching your notes...") before the final review.
 
-**Why it's pointless without the LLM:** the underlying stats are already public on deadlock-api.com. The value here is an LLM synthesizing up to 7 simultaneous hero matchups into one decision, and reflecting on a specific match's events in natural language — strip out the LLM call and there's no app left, just a stats dashboard that already exists elsewhere.
+**Why it's pointless without the LLM:** the underlying stats are already public on deadlock-api.com. The value here is an LLM synthesizing a full 12-hero draft (your team + the enemy team, across all three lanes) into one early-game-plus-late-game decision, and reflecting on a specific match's events in natural language — strip out the LLM call and there's no app left, just a stats dashboard that already exists elsewhere.
 
 ## Live app
 
@@ -71,7 +70,7 @@ Uses the same `.env.local` (needs the service-role key to create/delete its own 
 
 ## Screenshot
 
-![Laning Advisor giving a live, AI-generated buy order against Vindicta](./screenshot.png)
+![Match Advisor's lane-grid draft picker with a live, AI-generated laning-plus-itemization plan against Vindicta](./screenshot.png)
 
 ## Tech stack
 
