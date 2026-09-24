@@ -79,7 +79,15 @@ export function HeroSelect({
         role="listbox"
         aria-labelledby={`${listboxId}-label`}
         onKeyDown={handleKeyDown}
-        className="grid max-h-64 grid-cols-4 gap-2 overflow-y-auto rounded border border-border bg-surface p-2 sm:grid-cols-6"
+        // Sized off the actual container width (auto-fill/minmax), not a
+        // viewport breakpoint — this component gets used both full-width
+        // (advisor forms) and squeezed into a narrow lane column (match
+        // advisor), and a viewport-based `sm:grid-cols-N` ignores how
+        // narrow its own container actually is, overflowing badly.
+        // --dl-hero-card-width shrinks DlHeroCard to match, since its own
+        // default (95px) is a fixed size, not responsive to its grid cell.
+        style={{ "--dl-hero-card-width": "64px" } as React.CSSProperties}
+        className="grid max-h-64 gap-2 overflow-y-auto rounded border border-border bg-surface p-2 [grid-template-columns:repeat(auto-fill,minmax(64px,1fr))]"
       >
         {filtered.map((h, i) => (
           <button

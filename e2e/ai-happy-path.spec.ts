@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { createTestUser, deleteTestUser } from "./test-user";
 
-test("laning advisor produces a real streamed AI response for a signed-in user", async ({ page }) => {
+test("match advisor produces a real streamed AI response for a signed-in user", async ({ page }) => {
   const user = await createTestUser();
 
   try {
@@ -11,14 +11,17 @@ test("laning advisor produces a real streamed AI response for a signed-in user",
     await page.getByRole("button", { name: "Sign in" }).click();
     await expect(page).toHaveURL(/\/app$/);
 
-    await page.goto("/app/laning");
-    // The <select>'s accessible name incorporates its currently-selected
-    // option text (e.g. "Your hero-- pick a hero --"), so match on the
-    // stable label prefix rather than the exact composite string.
-    await page.getByRole("combobox", { name: "Your hero" }).selectOption("1"); // Infernus
-    await page.getByRole("combobox", { name: "Lane partner" }).selectOption("2"); // Seven
-    await page.getByRole("combobox", { name: "Enemy laner 1" }).selectOption("3"); // Vindicta
-    await page.getByRole("button", { name: "Get laning advice" }).click();
+    await page.goto("/app/match");
+    // Each HeroSelect is a labeled listbox of hero-card options (not a
+    // native <select>), so pick the option within the correctly-labeled
+    // group rather than a combobox.
+    await page.getByRole("listbox", { name: "Your hero" }).getByRole("option", { name: "Infernus" }).click();
+    await page.getByRole("listbox", { name: "Lane partner" }).getByRole("option", { name: "Seven" }).click();
+    await page
+      .getByRole("listbox", { name: "Enemy laner 1" })
+      .getByRole("option", { name: "Vindicta" })
+      .click();
+    await page.getByRole("button", { name: "Get match plan" }).click();
 
     const output = page.locator("pre");
     await expect(output).toBeVisible({ timeout: 30_000 });
