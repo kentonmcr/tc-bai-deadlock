@@ -30,8 +30,9 @@ The app has two features, both built around real LLM calls:
 (win rates, item timing, matchups) are already public on deadlock-api.com.
 This app is pointless without the LLM specifically because raw stats
 tables don't make a decision for you — the value is an LLM synthesizing
-a full 12-hero draft (your team + the enemy team, across all three lanes)
-into one early-game-plus-late-game decision, and reflecting on a specific
+your hero, your lane partner, and the full 6-hero enemy team (drawn from
+the 3-lane draft) into one early-game-plus-late-game decision, and
+reflecting on a specific
 match's events in natural language. Strip out the LLM call and there's no
 app left, only a stats dashboard that already exists elsewhere.
 

@@ -71,11 +71,7 @@ export async function checkRateLimit(
     return null;
   }
   if ((count ?? 0) >= RATE_LIMIT_MAX_PER_HOUR) {
-    // advisor_sessions is shared by both the laning and itemization
-    // advisors (no advisor_type filter above) — the message says so
-    // explicitly rather than implying a per-advisor budget that isn't
-    // what's actually enforced.
-    const scope = table === "advisor_sessions" ? "the laning and itemization advisors combined" : "match reviews";
+    const scope = table === "advisor_sessions" ? "the match advisor" : "match reviews";
     return new Response(
       `You've hit the limit of ${RATE_LIMIT_MAX_PER_HOUR} requests per hour for ${scope}. Try again later.`,
       { status: 429 },
