@@ -5,74 +5,70 @@ import { useCompletion } from "@ai-sdk/react";
 import { HeroSelect } from "@/components/hero-select";
 import type { Hero } from "@/lib/deadlock-api";
 
-const MINIMAP_URL = "https://assets-bucket.deadlock-api.com/assets-api-res/images/maps/minimap_plain.png";
+type SlotKey =
+  | "yellowAlly1"
+  | "yellowAlly2"
+  | "yellowEnemy1"
+  | "yellowEnemy2"
+  | "blueAlly1"
+  | "blueAlly2"
+  | "blueEnemy1"
+  | "blueEnemy2"
+  | "greenAlly1"
+  | "greenAlly2"
+  | "greenEnemy1"
+  | "greenEnemy2";
 
-type LaneKey = "yellow" | "blue" | "green";
+/**
+ * Percentage coordinates on the 1:1 minimap image, picked to sit beside
+ * each lane's own path near where it reaches the enemy base (top) or the
+ * ally base (bottom) — tuned by eye against the actual image, not derived
+ * from exact pixel math.
+ */
+const SLOT_POSITIONS: Record<
+  SlotKey,
+  { top: string; left: string; label: string; popoverAlign: "left" | "right" }
+> = {
+  yellowEnemy1: { top: "24%", left: "10%", label: "Enemy laner 1", popoverAlign: "left" },
+  yellowEnemy2: { top: "36%", left: "6%", label: "Enemy laner 2 (optional)", popoverAlign: "left" },
+  yellowAlly1: { top: "62%", left: "6%", label: "Your hero", popoverAlign: "left" },
+  yellowAlly2: { top: "74%", left: "10%", label: "Lane partner", popoverAlign: "left" },
 
-const LANES: Array<{ key: LaneKey; label: string; accent: string; isYours: boolean }> = [
-  { key: "yellow", label: "Yellow lane", accent: "#e8c74a", isYours: true },
-  { key: "blue", label: "Blue lane", accent: "#3ec6f0", isYours: false },
-  { key: "green", label: "Green lane", accent: "#4fbf5c", isYours: false },
-];
+  blueEnemy1: { top: "10%", left: "43%", label: "Enemy 1", popoverAlign: "left" },
+  blueEnemy2: { top: "10%", left: "57%", label: "Enemy 2 (optional)", popoverAlign: "right" },
+  blueAlly1: { top: "88%", left: "43%", label: "Ally 1 (optional)", popoverAlign: "left" },
+  blueAlly2: { top: "88%", left: "57%", label: "Ally 2 (optional)", popoverAlign: "right" },
 
-function LaneColumn({
-  lane,
+  greenEnemy1: { top: "24%", left: "90%", label: "Enemy 1", popoverAlign: "right" },
+  greenEnemy2: { top: "36%", left: "94%", label: "Enemy 2 (optional)", popoverAlign: "right" },
+  greenAlly1: { top: "62%", left: "94%", label: "Ally 1 (optional)", popoverAlign: "right" },
+  greenAlly2: { top: "74%", left: "90%", label: "Ally 2 (optional)", popoverAlign: "right" },
+};
+
+function Slot({
+  slotKey,
   heroes,
   values,
   setValue,
 }: {
-  lane: (typeof LANES)[number];
+  slotKey: SlotKey;
   heroes: Hero[];
   values: Record<string, number>;
   setValue: (key: string, id: number) => void;
 }) {
+  const pos = SLOT_POSITIONS[slotKey];
   return (
     <div
-      className="flex flex-col gap-4 rounded-lg border p-3"
-      style={{ borderColor: lane.isYours ? lane.accent : `${lane.accent}4d` }}
+      className="absolute -translate-x-1/2 -translate-y-1/2"
+      style={{ top: pos.top, left: pos.left }}
     >
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-semibold tracking-wide uppercase" style={{ color: lane.accent }}>
-          {lane.label}
-        </span>
-        {lane.isYours && (
-          <span className="rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ backgroundColor: `${lane.accent}26`, color: lane.accent }}>
-            Yours
-          </span>
-        )}
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <span className="text-xs text-muted">Enemies</span>
-        <HeroSelect
-          heroes={heroes}
-          label={lane.isYours ? "Enemy laner 1" : "Enemy 1"}
-          value={values[`${lane.key}Enemy1`] ?? 0}
-          onChange={(id) => setValue(`${lane.key}Enemy1`, id)}
-        />
-        <HeroSelect
-          heroes={heroes}
-          label={lane.isYours ? "Enemy laner 2 (optional)" : "Enemy 2 (optional)"}
-          value={values[`${lane.key}Enemy2`] ?? 0}
-          onChange={(id) => setValue(`${lane.key}Enemy2`, id)}
-        />
-      </div>
-
-      <div className="flex flex-col gap-2">
-        <span className="text-xs text-muted">{lane.isYours ? "Your team" : "Allies (optional)"}</span>
-        <HeroSelect
-          heroes={heroes}
-          label={lane.isYours ? "Your hero" : "Ally 1 (optional)"}
-          value={values[`${lane.key}Ally1`] ?? 0}
-          onChange={(id) => setValue(`${lane.key}Ally1`, id)}
-        />
-        <HeroSelect
-          heroes={heroes}
-          label={lane.isYours ? "Lane partner" : "Ally 2 (optional)"}
-          value={values[`${lane.key}Ally2`] ?? 0}
-          onChange={(id) => setValue(`${lane.key}Ally2`, id)}
-        />
-      </div>
+      <HeroSelect
+        heroes={heroes}
+        label={pos.label}
+        value={values[slotKey] ?? 0}
+        onChange={(id) => setValue(slotKey, id)}
+        popoverAlign={pos.popoverAlign}
+      />
     </div>
   );
 }
@@ -115,20 +111,23 @@ export function MatchForm({ heroes }: { heroes: Hero[] }) {
         }}
         className="flex flex-col gap-4"
       >
-        <div className="relative overflow-hidden rounded-lg">
+        <div className="relative mx-auto aspect-square w-full max-w-2xl">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={MINIMAP_URL}
+            src="/minimap-ghostly.png"
             alt=""
-            referrerPolicy="no-referrer"
             aria-hidden="true"
-            className="pointer-events-none absolute inset-0 h-full w-full object-contain opacity-10"
+            className="pointer-events-none absolute inset-0 h-full w-full object-contain"
           />
-          <div className="relative grid grid-cols-1 gap-4 p-1 sm:grid-cols-3">
-            {LANES.map((lane) => (
-              <LaneColumn key={lane.key} lane={lane} heroes={heroes} values={values} setValue={setValue} />
-            ))}
+          <div className="pointer-events-none absolute top-[2%] left-1/2 -translate-x-1/2 text-xs font-semibold tracking-wide text-danger/70">
+            ENEMY
           </div>
+          <div className="pointer-events-none absolute bottom-[2%] left-1/2 -translate-x-1/2 text-xs font-semibold tracking-wide text-accent">
+            YOU
+          </div>
+          {(Object.keys(SLOT_POSITIONS) as SlotKey[]).map((slotKey) => (
+            <Slot key={slotKey} slotKey={slotKey} heroes={heroes} values={values} setValue={setValue} />
+          ))}
         </div>
 
         <button
