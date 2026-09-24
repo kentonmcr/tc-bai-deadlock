@@ -1,33 +1,75 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { DlHeroCard } from "@deadlock-api/ui-react";
 import type { Hero } from "@/lib/deadlock-api";
 
+/**
+ * Collapsed by default (shows the selection, or an "Add hero +" prompt) —
+ * the full searchable hero grid only renders once clicked open. With up
+ * to 12 of these on one page (the match advisor's lane grid), rendering
+ * every grid eagerly was the single biggest source of visual clutter.
+ */
 export function HeroSelect({
   heroes,
   label,
   value,
   onChange,
+  className,
+  popoverAlign = "left",
 }: {
   heroes: Hero[];
   label: string;
   value: number;
   onChange: (id: number) => void;
+  className?: string;
+  /** Which edge of the trigger the popover's own edge aligns to — "left"
+   * (default) works for most placements; use "right" for triggers near
+   * the right edge of their container so the popover opens inward
+   * instead of overflowing past the viewport edge. */
+  popoverAlign?: "left" | "right";
 }) {
+  const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [activeId, setActiveId] = useState<number | null>(null);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const buttonRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
+
+  const selectedHero = heroes.find((h) => h.id === value) ?? null;
   const filtered = query.trim()
     ? heroes.filter((h) => h.name.toLowerCase().includes(query.trim().toLowerCase()))
     : heroes;
 
-  // Roving tabindex: only one hero button sits in the page's Tab order at a
-  // time (defaults to the selected one, or the first result) — without
-  // this, tabbing past this field means tabbing through all ~37 heroes
-  // individually. Arrow/Home/End move both focus and this index; Tab
-  // leaves the grid entirely, matching the WAI-ARIA grid/listbox pattern.
-  const [activeId, setActiveId] = useState<number | null>(value || null);
-  const buttonRefs = useRef<Map<number, HTMLButtonElement>>(new Map());
-  const listboxId = useId();
+  useEffect(() => {
+    if (!isOpen) return;
+    searchInputRef.current?.focus();
+    function handlePointerDown(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setIsOpen(false);
+      }
+    }
+    function handleKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setIsOpen(false);
+    }
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleKey);
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleKey);
+    };
+  }, [isOpen]);
+
+  function open() {
+    setQuery("");
+    setActiveId(value || null);
+    setIsOpen(true);
+  }
+
+  function selectHero(id: number) {
+    onChange(id);
+    setIsOpen(false);
+  }
 
   const activeIndex = Math.max(
     0,
@@ -42,7 +84,7 @@ export function HeroSelect({
     buttonRefs.current.get(hero.id)?.focus();
   }
 
-  function handleKeyDown(e: React.KeyboardEvent) {
+  function handleGridKeyDown(e: React.KeyboardEvent) {
     switch (e.key) {
       case "ArrowRight":
         e.preventDefault();
@@ -64,60 +106,76 @@ export function HeroSelect({
   }
 
   return (
-    <div className="flex flex-col gap-2">
-      <label className="flex flex-col gap-1 text-sm" id={`${listboxId}-label`}>
-        {label}
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search heroes..."
-          className="rounded border border-border bg-surface px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-accent focus:outline-none"
-        />
-      </label>
-      <div
-        role="listbox"
-        aria-labelledby={`${listboxId}-label`}
-        onKeyDown={handleKeyDown}
-        // Sized off the actual container width (auto-fill/minmax), not a
-        // viewport breakpoint — this component gets used both full-width
-        // (advisor forms) and squeezed into a narrow lane column (match
-        // advisor), and a viewport-based `sm:grid-cols-N` ignores how
-        // narrow its own container actually is, overflowing badly.
-        // --dl-hero-card-width shrinks DlHeroCard to match, since its own
-        // default (95px) is a fixed size, not responsive to its grid cell.
-        style={{ "--dl-hero-card-width": "64px" } as React.CSSProperties}
-        className="grid max-h-64 gap-2 overflow-y-auto rounded border border-border bg-surface p-2 [grid-template-columns:repeat(auto-fill,minmax(64px,1fr))]"
+    <div ref={containerRef} className={`relative ${className ?? ""}`}>
+      <button
+        type="button"
+        onClick={() => (isOpen ? setIsOpen(false) : open())}
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
+        aria-label={selectedHero ? `${label}: ${selectedHero.name}` : `${label}: add hero`}
+        title={label}
+        className="flex h-16 w-16 items-center justify-center overflow-hidden rounded border border-dashed border-border bg-surface/90 text-center text-[9px] leading-tight text-muted transition hover:border-accent"
       >
-        {filtered.map((h, i) => (
-          <button
-            key={h.id}
-            ref={(el) => {
-              if (el) buttonRefs.current.set(h.id, el);
-              else buttonRefs.current.delete(h.id);
-            }}
-            type="button"
-            role="option"
-            aria-selected={value === h.id}
-            aria-label={h.name}
-            tabIndex={i === activeIndex ? 0 : -1}
-            onClick={() => {
-              setActiveId(h.id);
-              onChange(h.id);
-            }}
-            className={`rounded transition ${
-              value === h.id
-                ? "shadow-[0_0_0_2px_var(--accent)]"
-                : "opacity-70 hover:opacity-100"
-            }`}
-          >
-            <DlHeroCard heroData={h} rounded borderNone />
-          </button>
-        ))}
-        {filtered.length === 0 && (
-          <p className="col-span-full py-4 text-center text-sm text-muted">No heroes match &ldquo;{query}&rdquo;.</p>
+        {selectedHero ? (
+          <DlHeroCard heroData={selectedHero} rounded borderNone style={{ "--dl-hero-card-width": "62px" } as React.CSSProperties} />
+        ) : (
+          <span>
+            Add hero
+            <br />+
+          </span>
         )}
-      </div>
+      </button>
+
+      {isOpen && (
+        <div
+          role="dialog"
+          aria-label={label}
+          className={`absolute top-full z-30 mt-2 w-72 rounded border border-accent bg-surface p-2 shadow-2xl ${
+            popoverAlign === "right" ? "right-0" : "left-0"
+          }`}
+        >
+          <p className="mb-1 px-1 text-xs font-medium text-foreground">{label}</p>
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search heroes..."
+            className="mb-2 w-full rounded border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted focus:border-accent focus:outline-none"
+          />
+          <div
+            role="listbox"
+            aria-label={label}
+            onKeyDown={handleGridKeyDown}
+            className="grid max-h-64 gap-2 overflow-y-auto rounded p-1 [grid-template-columns:repeat(auto-fill,minmax(56px,1fr))]"
+          >
+            {filtered.map((h, i) => (
+              <button
+                key={h.id}
+                ref={(el) => {
+                  if (el) buttonRefs.current.set(h.id, el);
+                  else buttonRefs.current.delete(h.id);
+                }}
+                type="button"
+                role="option"
+                aria-selected={value === h.id}
+                aria-label={h.name}
+                tabIndex={i === activeIndex ? 0 : -1}
+                onClick={() => selectHero(h.id)}
+                style={{ "--dl-hero-card-width": "56px" } as React.CSSProperties}
+                className={`rounded transition ${
+                  value === h.id ? "shadow-[0_0_0_2px_var(--accent)]" : "opacity-70 hover:opacity-100"
+                }`}
+              >
+                <DlHeroCard heroData={h} rounded borderNone />
+              </button>
+            ))}
+            {filtered.length === 0 && (
+              <p className="col-span-full py-4 text-center text-sm text-muted">No heroes match &ldquo;{query}&rdquo;.</p>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

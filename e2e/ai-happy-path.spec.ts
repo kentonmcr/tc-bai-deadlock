@@ -1,5 +1,11 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
 import { createTestUser, deleteTestUser } from "./test-user";
+
+/** Opens a HeroSelect's popover by its "<label>: add hero" trigger button, then picks a hero option inside it. */
+async function pickHero(page: Page, label: string, heroName: string) {
+  await page.getByRole("button", { name: `${label}: add hero` }).click();
+  await page.getByRole("dialog", { name: label }).getByRole("option", { name: heroName }).click();
+}
 
 test("match advisor produces a real streamed AI response for a signed-in user", async ({ page }) => {
   const user = await createTestUser();
@@ -12,15 +18,12 @@ test("match advisor produces a real streamed AI response for a signed-in user", 
     await expect(page).toHaveURL(/\/app$/);
 
     await page.goto("/app/match");
-    // Each HeroSelect is a labeled listbox of hero-card options (not a
-    // native <select>), so pick the option within the correctly-labeled
-    // group rather than a combobox.
-    await page.getByRole("listbox", { name: "Your hero" }).getByRole("option", { name: "Infernus" }).click();
-    await page.getByRole("listbox", { name: "Lane partner" }).getByRole("option", { name: "Seven" }).click();
-    await page
-      .getByRole("listbox", { name: "Enemy laner 1" })
-      .getByRole("option", { name: "Vindicta" })
-      .click();
+    // Each HeroSelect is collapsed to an "Add hero +" trigger until
+    // clicked — the search input and hero-card listbox only render once
+    // its popover dialog opens.
+    await pickHero(page, "Your hero", "Infernus");
+    await pickHero(page, "Lane partner", "Seven");
+    await pickHero(page, "Enemy laner 1", "Vindicta");
     await page.getByRole("button", { name: "Get match plan" }).click();
 
     const output = page.locator("pre");
