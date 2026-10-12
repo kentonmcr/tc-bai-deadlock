@@ -31,7 +31,7 @@ export function createSearchNotesTool(supabase: SupabaseClient) {
         .describe("A natural-language query, e.g. 'have I struggled against invisibility before'"),
     }),
     execute: async ({ query }) => {
-      console.log("[search_notes] called with query:", query);
+      console.log("[search_notes] called");
       let embedding: number[];
       try {
         embedding = await embedText(query);

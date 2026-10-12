@@ -106,7 +106,7 @@ export async function POST(req: Request) {
       await closeMcpClient();
     },
     onToolExecutionStart: ({ toolCall }) => {
-      console.log(`[review tool call] ${toolCall.toolName}:`, JSON.stringify(toolCall.input));
+      console.log(`[review tool call] ${toolCall.toolName}`);
     },
     onEnd: async ({ text }) => {
       await closeMcpClient();
